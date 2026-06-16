@@ -1,10 +1,64 @@
-let state = { data: null, spheres: null, chart: null, filter: "all", query: "", channel: "all", activeSphere: null, authRequired: false };
+let state = { data: null, spheres: null, chart: null, filter: "all", query: "", channel: "all", activeSphere: null, authRequired: false, tab: "today" };
 
 function apiHeaders(extra = {}) {
   const h = { ...extra };
+  const pw = sessionStorage.getItem("dashboard_password");
+  if (pw) h["X-Dashboard-Password"] = pw;
   const token = sessionStorage.getItem("dashboard_token");
   if (token) h["X-Dashboard-Token"] = token;
   return h;
+}
+
+function showLogin() {
+  document.getElementById("login-screen")?.removeAttribute("hidden");
+  document.getElementById("app")?.setAttribute("hidden", "");
+}
+
+function showApp() {
+  document.getElementById("login-screen")?.setAttribute("hidden", "");
+  document.getElementById("app")?.removeAttribute("hidden");
+}
+
+async function tryLogin(password) {
+  sessionStorage.setItem("dashboard_password", password);
+  const res = await fetch("/api/dashboard", { headers: apiHeaders() });
+  if (res.ok) {
+    document.getElementById("login-error")?.setAttribute("hidden", "");
+    showApp();
+    await load();
+    return true;
+  }
+  sessionStorage.removeItem("dashboard_password");
+  const err = document.getElementById("login-error");
+  if (err) err.removeAttribute("hidden");
+  return false;
+}
+
+async function ensureAuth() {
+  const cfgR = await fetch("/api/config");
+  const cfg = cfgR.ok ? await cfgR.json() : { auth_required: false };
+  state.authRequired = !!cfg.auth_required;
+  if (!state.authRequired) {
+    showApp();
+    return true;
+  }
+  const saved = sessionStorage.getItem("dashboard_password") || sessionStorage.getItem("dashboard_token");
+  if (saved) {
+    if (sessionStorage.getItem("dashboard_token") && !sessionStorage.getItem("dashboard_password")) {
+      /* legacy token */
+    } else if (!sessionStorage.getItem("dashboard_password")) {
+      sessionStorage.setItem("dashboard_password", saved);
+    }
+    const ok = await fetch("/api/dashboard", { headers: apiHeaders() });
+    if (ok.ok) {
+      showApp();
+      return true;
+    }
+    sessionStorage.removeItem("dashboard_password");
+    sessionStorage.removeItem("dashboard_token");
+  }
+  showLogin();
+  return false;
 }
 
 async function apiFetch(url, opts = {}) {
@@ -13,11 +67,7 @@ async function apiFetch(url, opts = {}) {
     headers: apiHeaders(opts.headers || {}),
   });
   if (res.status === 401 && state.authRequired) {
-    const token = prompt("Токен дашборда (MONEY_DASHBOARD_TOKEN):");
-    if (token) {
-      sessionStorage.setItem("dashboard_token", token);
-      return apiFetch(url, opts);
-    }
+    showLogin();
   }
   return res;
 }
@@ -63,6 +113,7 @@ function matchesFilter(idea) {
   const f = state.filter;
   if (f === "all") return true;
   if (f === "flagship") return idea.tier === "flagship";
+  if (f === "running") return idea.status === "running";
   if (f === "online" || f === "physical") return idea.channel === f;
   return idea.cluster === f;
 }
@@ -111,16 +162,31 @@ function renderMoneyBar(m) {
   document.getElementById("m-target").textContent = fmtRub(m.target_today);
   document.getElementById("m-actual").textContent = fmtRub(m.actual_today);
   const gapEl = document.getElementById("m-gap");
-  gapEl.textContent = (m.gap > 0 ? "−" : "+") + fmtRub(Math.abs(m.gap));
-  gapEl.parentElement.className = "money-cell" + (m.gap > 0 ? " gap-bad" : m.gap < 0 ? " gap-good" : "");
+  const gap = m.gap || 0;
+  if (gap > 0) {
+    gapEl.textContent = fmtRub(gap);
+    gapEl.parentElement.className = "hero-stat hero-stat--red";
+  } else {
+    gapEl.textContent = gap < 0 ? "✓ " + fmtRub(Math.abs(gap)) + " сверх" : "0 ₽";
+    gapEl.parentElement.className = "hero-stat hero-stat--green";
+  }
   document.getElementById("m-potential").textContent = fmtRub(m.potential_if_launch_online);
+  const pct = m.target_today > 0 ? Math.min(100, Math.round((m.actual_today / m.target_today) * 100)) : 0;
+  const bar = document.getElementById("progress-bar");
+  if (bar) bar.style.width = pct + "%";
+  const hint = document.getElementById("hero-hint");
+  if (hint) {
+    if (m.target_today <= 0) hint.textContent = "Открой вкладку «Проекты» → добавь идею в план на сегодня";
+    else if (gap > 0) hint.textContent = `Не хватает ${fmtRub(gap)} до цели — добавь доход или запусти проект`;
+    else hint.textContent = "Цель на сегодня выполнена 🎉";
+  }
 }
 
 function renderTodayPlan(plan) {
   const el = document.getElementById("today-plan");
   el.innerHTML = "";
   if (!plan.length) {
-    el.innerHTML = '<span class="today-strip__hint">Клик по идее → «В план на сегодня»</span>';
+    el.innerHTML = '<p class="empty-plan">Пока пусто. Вкладка «Проекты» → нажми проект → «В план на сегодня»</p>';
     return;
   }
   plan.forEach((p) => {
@@ -131,7 +197,7 @@ function renderTodayPlan(plan) {
     chip.title = p.promotion || "";
     el.appendChild(chip);
   });
-  document.getElementById("plan-hint").textContent = `Цель: ${fmtRub(plan.reduce((s, p) => s + (p.expected_rub || 0), 0))} · ${plan.length} проект(ов)`;
+  document.getElementById("plan-hint").textContent = `Цель: ${fmtRub(plan.reduce((s, p) => s + (p.expected_rub || 0), 0))}`;
 }
 
 function renderAssets(assets, doneCount) {
@@ -368,23 +434,19 @@ function renderAll() {
   document.getElementById("count-running").textContent = d.totals.running_count;
   document.getElementById("count-pending").textContent = d.totals.pending_count;
 
-  fillPanel("list-connected", d.connected, "Пока ничего не подключено");
-  fillPanel("list-running", d.running, "Нет активных потоков");
+  fillPanel("list-connected", d.connected, "Ничего не подключено");
+  fillPanel("list-running", d.running, "Пока ничего не приносит деньги");
   const flagships = d.needs_action.filter((i) => i.tier === "flagship");
   const fr = document.getElementById("flagship-row");
   fr.innerHTML = "";
   flagships.filter(matchesFilter).forEach((i) => fr.appendChild(compactCard(i)));
-  fillPanel("list-pending", d.needs_action.filter((i) => i.tier !== "flagship"), "Онлайн-идеи — фильтр 🌐 Онлайн");
+  fillPanel("list-pending", d.needs_action.filter((i) => i.tier !== "flagship"), "Все онлайн-проекты уже в работе 🎉");
   if (state.chart) renderChart(state.chart);
 }
 
 async function load() {
   try {
-    const cfgR = await apiFetch("/api/config");
-    if (cfgR.ok) {
-      const cfg = await cfgR.json();
-      state.authRequired = !!cfg.auth_required;
-    }
+    if (!document.getElementById("app") || document.getElementById("app").hasAttribute("hidden")) return;
     const ch = state.channel !== "all" ? `?channel=${state.channel}` : "";
     const [dashR, sphR, chartR] = await Promise.all([
       apiFetch(`/api/dashboard${ch}`),
@@ -463,7 +525,7 @@ document.getElementById("filters").addEventListener("click", (e) => {
   state.filter = f;
   if (f === "online" || f === "physical") state.channel = f;
   else state.channel = "all";
-  load();
+  renderAll();
 });
 
 document.getElementById("btn-close-day").addEventListener("click", closeDay);
@@ -547,8 +609,33 @@ document.addEventListener("click", (e) => {
   if (action === "opp-reject") rejectOpp(slug);
 });
 
-load();
-setInterval(load, 20000);
+document.getElementById("main-tabs")?.addEventListener("click", (e) => {
+  const tab = e.target.closest(".tab");
+  if (!tab) return;
+  const name = tab.dataset.tab;
+  state.tab = name;
+  document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("tab--active", t === tab));
+  document.querySelectorAll(".tab-panel").forEach((p) => {
+    const show = p.id === `tab-${name}`;
+    p.hidden = !show;
+    p.classList.toggle("tab-panel--active", show);
+  });
+});
+
+document.getElementById("login-btn")?.addEventListener("click", () => {
+  const pw = document.getElementById("login-password")?.value?.trim();
+  if (pw) tryLogin(pw);
+});
+document.getElementById("login-password")?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") document.getElementById("login-btn")?.click();
+});
+
+(async function init() {
+  if (await ensureAuth()) {
+    await load();
+    setInterval(load, 20000);
+  }
+})();
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/static/sw.js").catch(() => {});

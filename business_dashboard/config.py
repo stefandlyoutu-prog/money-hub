@@ -15,8 +15,15 @@ MONEY_ADMIN_IDS: set[int] = {
     if x.strip().isdigit()
 }
 
-# Токен для API дашборда (пусто = без авторизации, только localhost)
+# Пароль для входа на сайт (по умолчанию 1234)
+DASHBOARD_PASSWORD: str = os.getenv("MONEY_DASHBOARD_PASSWORD", "1234").strip()
+
+# Старый длинный токен — тоже принимается, если задан на Render
 DASHBOARD_TOKEN: str = os.getenv("MONEY_DASHBOARD_TOKEN", "").strip()
+
+
+def dashboard_auth_enabled() -> bool:
+    return bool(DASHBOARD_PASSWORD or DASHBOARD_TOKEN)
 
 # Telegram-бот Money Hub (отдельный от M-bot / M-oracul)
 MONEY_BOT_TOKEN: str = os.getenv("MONEY_BOT_TOKEN", "").strip()

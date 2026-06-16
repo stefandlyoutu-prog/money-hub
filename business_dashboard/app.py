@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from business_dashboard.config import DASHBOARD_TOKEN, MONEY_ADMIN_IDS, public_dashboard_url
+from business_dashboard.config import DASHBOARD_TOKEN, MONEY_ADMIN_IDS, dashboard_auth_enabled, public_dashboard_url
 from business_dashboard.daily import (
     add_to_today_plan,
     close_day_report,
@@ -112,8 +112,9 @@ app.mount("/mini/static", StaticFiles(directory=MINIAPP), name="mini_static")
 @app.get("/api/config")
 def api_config():
     return {
-        "auth_required": bool(DASHBOARD_TOKEN),
-        "version": "0.4.0",
+        "auth_required": dashboard_auth_enabled(),
+        "auth_type": "password",
+        "version": "0.5.0",
         "dashboard_url": public_dashboard_url(),
     }
 

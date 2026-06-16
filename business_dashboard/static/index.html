@@ -3,139 +3,162 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#e8b923">
+  <meta name="theme-color" content="#0f1419">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Money Hub">
-  <title>Центр доходов</title>
+  <title>Money Hub</title>
   <link rel="manifest" href="/static/manifest.webmanifest">
   <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style-v2.css">
 </head>
 <body>
-  <header class="header">
-    <div class="header__left">
-      <span class="header__logo">◈</span>
-      <div>
-        <h1>Центр доходов</h1>
-        <p class="header__sub" id="header-date">—</p>
-      </div>
-    </div>
-    <button type="button" class="btn btn--gold" id="btn-close-day">Отчёт за день</button>
-  </header>
-
-  <section class="money-bar" id="money-bar">
-    <div class="money-cell">
-      <span class="money-cell__lbl">План на сегодня</span>
-      <span class="money-cell__val" id="m-target">—</span>
-    </div>
-    <div class="money-cell money-cell--accent">
-      <span class="money-cell__lbl">Заработали</span>
-      <span class="money-cell__val" id="m-actual">—</span>
-    </div>
-    <div class="money-cell">
-      <span class="money-cell__lbl">Разрыв</span>
-      <span class="money-cell__val" id="m-gap">—</span>
-    </div>
-    <div class="money-cell money-cell--dim">
-      <span class="money-cell__lbl">Если запустить онлайн</span>
-      <span class="money-cell__val money-cell__val--sm" id="m-potential">—</span>
-    </div>
-  </section>
-
-  <section class="today-strip">
-    <div class="today-strip__head">
-      <h2>План на сегодня</h2>
-      <span class="today-strip__hint" id="plan-hint">Добавь онлайн-проекты — цель на день</span>
-    </div>
-    <div class="today-strip__list" id="today-plan"></div>
-  </section>
-
-  <section class="vault" id="vault-section">
-    <div class="vault__head">
-      <h2>Сделал один раз <span id="assets-done">0/0</span></h2>
-      <span class="vault__hint">Отмечай готовое — подтянется во все проекты автоматически</span>
-    </div>
-    <div class="vault__grid" id="assets-grid"></div>
-  </section>
-
-  <section class="channels" id="channels-section">
-    <div class="channels__head">
-      <h2>Telegram-каналы <span id="channels-count">0</span></h2>
-      <button type="button" class="btn btn--sm" id="btn-channels-sync">Синхронизировать</button>
-    </div>
-    <p class="channels__hint">Добавь @MOracul_bot админом → канал появится здесь. Воронка ведёт на бота и реф. ссылки.</p>
-    <form class="channels__add" id="channels-add-form">
-      <input type="text" id="channel-username" class="search" placeholder="@username или t.me/..." autocomplete="off">
-      <button type="submit" class="btn btn--primary btn--sm">Добавить</button>
-    </form>
-    <div class="channels__grid" id="channels-grid"></div>
-  </section>
-
-  <section class="scout" id="scout-section">
-    <div class="scout__head">
-      <h2>Разведка идей <span id="scout-count">0</span></h2>
-      <button type="button" class="btn btn--primary btn--sm" id="btn-scout-scan">Обновить тренды</button>
-    </div>
-    <div class="scout__pipe" id="scout-pipeline"></div>
-    <div class="scout__list" id="scout-list"></div>
-  </section>
-
-  <section class="blockers" id="blockers-section">
-    <div class="blockers__head">
-      <h2>Нужно от вас <span id="blockers-count">0</span></h2>
-      <span class="blockers__hint">Почта, логин, регистрация — без этого деньги не пойдут</span>
-    </div>
-    <div id="blockers-list"></div>
-  </section>
-
-  <div class="toolbar">
-    <input type="search" id="search" class="search" placeholder="Поиск…" autocomplete="off">
-    <div class="filters" id="filters">
-      <button class="chip chip--active" data-filter="all">Все</button>
-      <button class="chip chip--online" data-filter="online">🌐 Онлайн</button>
-      <button class="chip chip--physical" data-filter="physical">🔧 Физика</button>
-      <button class="chip" data-filter="flagship">★ Флагманы</button>
+  <!-- Вход -->
+  <div id="login-screen" class="login">
+    <div class="login__card">
+      <div class="login__logo">◈</div>
+      <h1>Money Hub</h1>
+      <p class="login__sub">Центр доходов — только для тебя</p>
+      <input type="password" id="login-password" class="login__input" placeholder="Пароль" autocomplete="current-password" inputmode="numeric">
+      <p id="login-error" class="login__error" hidden>Неверный пароль</p>
+      <button type="button" class="btn btn--primary btn--wide" id="login-btn">Войти</button>
     </div>
   </div>
 
-  <section class="chart-wrap">
-    <h3 class="chart-wrap__title">Доход: план vs факт (7 дней)</h3>
-    <div class="chart" id="chart"></div>
-  </section>
+  <div id="app" class="app-shell" hidden>
+    <header class="topbar">
+      <div class="topbar__brand">
+        <span class="topbar__logo">◈</span>
+        <div>
+          <h1>Money Hub</h1>
+          <p id="header-date">—</p>
+        </div>
+      </div>
+      <button type="button" class="btn btn--gold" id="btn-close-day">Закрыть день</button>
+    </header>
 
-  <main class="layout">
-    <section class="panel panel--tl">
-      <header class="panel__head panel__head--blue">
-        <h2>Подключено <span class="count" id="count-connected">0</span></h2>
-      </header>
-      <div class="panel__body" id="list-connected"></div>
+    <nav class="tabs" id="main-tabs">
+      <button type="button" class="tab tab--active" data-tab="today">Сегодня</button>
+      <button type="button" class="tab" data-tab="projects">Проекты</button>
+      <button type="button" class="tab" data-tab="more">Ещё</button>
+    </nav>
+
+    <!-- ═══ СЕГОДНЯ ═══ -->
+    <section class="tab-panel tab-panel--active" id="tab-today">
+      <div class="hero-card">
+        <p class="hero-card__label">Главное на сегодня</p>
+        <div class="hero-stats">
+          <div class="hero-stat">
+            <span class="hero-stat__lbl">Нужно</span>
+            <span class="hero-stat__val" id="m-target">—</span>
+          </div>
+          <div class="hero-stat hero-stat--green">
+            <span class="hero-stat__lbl">Есть</span>
+            <span class="hero-stat__val" id="m-actual">—</span>
+          </div>
+          <div class="hero-stat">
+            <span class="hero-stat__lbl">Осталось</span>
+            <span class="hero-stat__val" id="m-gap">—</span>
+          </div>
+        </div>
+        <div class="progress-wrap">
+          <div class="progress-bar" id="progress-bar" style="width:0%"></div>
+        </div>
+        <p class="hero-hint" id="hero-hint">Добавь проекты в план — появится цель на день</p>
+      </div>
+
+      <div class="card-block">
+        <h2 class="block-title">Что делаем сегодня</h2>
+        <div class="today-strip__list" id="today-plan"></div>
+      </div>
+
+      <div class="card-block blockers blockers--hidden" id="blockers-section">
+        <h2 class="block-title block-title--warn">⚠️ Без этого деньги не пойдут <span id="blockers-count">0</span></h2>
+        <div id="blockers-list"></div>
+      </div>
+
+      <div class="card-block card-block--tip">
+        <p class="tip">💡 Если запустишь все онлайн-проекты — потенциал <strong id="m-potential">—</strong></p>
+      </div>
     </section>
-    <section class="panel panel--tr">
-      <header class="panel__head panel__head--live">
-        <h2>Онлайн сейчас <span class="count count--live" id="count-running">0</span></h2>
-      </header>
-      <div class="panel__body" id="list-running"></div>
-    </section>
-    <section class="panel panel--bl">
-      <header class="panel__head panel__head--warn">
-        <h2>Нужно действие <span class="count count--warn" id="count-pending">0</span></h2>
-      </header>
-      <div class="panel__body">
+
+    <!-- ═══ ПРОЕКТЫ ═══ -->
+    <section class="tab-panel" id="tab-projects" hidden>
+      <div class="toolbar">
+        <input type="search" id="search" class="search" placeholder="Найти проект…" autocomplete="off">
+        <div class="filters" id="filters">
+          <button class="chip chip--active" data-filter="all">Все</button>
+          <button class="chip chip--online" data-filter="online">🌐 Онлайн</button>
+          <button class="chip" data-filter="running">✅ Работает</button>
+          <button class="chip" data-filter="flagship">★ Главные</button>
+        </div>
+      </div>
+
+      <p class="section-hint">Нажми на проект — увидишь что сделать и кнопки действий</p>
+
+      <div class="project-section">
+        <h3 class="project-section__title">🔴 Нужно запустить <span class="count count--warn" id="count-pending">0</span></h3>
         <div class="flagship-row" id="flagship-row"></div>
         <div id="list-pending"></div>
       </div>
+
+      <div class="project-section">
+        <h3 class="project-section__title">🟢 Уже работает <span class="count count--live" id="count-running">0</span></h3>
+        <div id="list-running"></div>
+      </div>
+
+      <div class="project-section">
+        <h3 class="project-section__title">🔵 Подключено, ждёт старта <span class="count" id="count-connected">0</span></h3>
+        <div id="list-connected"></div>
+      </div>
     </section>
-    <section class="panel panel--br">
-      <header class="panel__head">
-        <h2>12 сфер жизни</h2>
-      </header>
-      <div class="panel__body panel__body--spheres">
+
+    <!-- ═══ ЕЩЁ ═══ -->
+    <section class="tab-panel" id="tab-more" hidden>
+      <div class="card-block" id="vault-section">
+        <h2 class="block-title">Сделал один раз <span id="assets-done">0/0</span></h2>
+        <p class="section-hint">Отметь галочкой — подтянется во все проекты</p>
+        <div class="vault__grid" id="assets-grid"></div>
+      </div>
+
+      <div class="card-block" id="channels-section">
+        <div class="block-head-row">
+          <h2 class="block-title">Telegram-каналы <span id="channels-count">0</span></h2>
+          <button type="button" class="btn btn--sm" id="btn-channels-sync">Обновить</button>
+        </div>
+        <p class="section-hint">Добавь бота админом канала, потом впиши @username</p>
+        <form class="channels__add" id="channels-add-form">
+          <input type="text" id="channel-username" class="search" placeholder="@channel">
+          <button type="submit" class="btn btn--primary btn--sm">Добавить</button>
+        </form>
+        <div class="channels__grid" id="channels-grid"></div>
+      </div>
+
+      <div class="card-block" id="scout-section">
+        <div class="block-head-row">
+          <h2 class="block-title">Идеи из трендов <span id="scout-count">0</span></h2>
+          <button type="button" class="btn btn--primary btn--sm" id="btn-scout-scan">Искать</button>
+        </div>
+        <div class="scout__pipe" id="scout-pipeline"></div>
+        <div class="scout__list" id="scout-list"></div>
+      </div>
+
+      <div class="card-block">
+        <h2 class="block-title">График за 7 дней</h2>
+        <div class="chart" id="chart"></div>
+      </div>
+
+      <div class="card-block">
+        <h2 class="block-title">12 сфер жизни</h2>
         <div class="spheres" id="spheres-grid"></div>
         <div class="sphere-detail" id="sphere-detail">
-          <p class="sphere-detail__placeholder">Клик по сфере → идеи</p>
+          <p class="sphere-detail__placeholder">Нажми сферу — увидишь идеи</p>
         </div>
       </div>
     </section>
-  </main>
+  </div>
+
+  <!-- Скрытый money-bar для совместимости с app.js -->
+  <div id="money-bar" hidden aria-hidden="true"></div>
+  <span id="plan-hint" hidden></span>
 
   <dialog id="idea-modal" class="modal">
     <div class="modal__inner">

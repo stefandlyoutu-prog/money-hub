@@ -54,8 +54,10 @@ def main() -> None:
         c = TestClient(app)
         assert c.get("/health").json()["ok"]
         assert c.get("/mini/").status_code == 200
+        h = {"X-Dashboard-Password": "1234"}
         assert c.get("/api/mini/home?user_id=5845195049").status_code == 200
-        assert c.get("/api/mini/home?user_id=1").status_code == 403
+        assert c.get("/api/dashboard", headers=h).status_code == 200
+        assert c.get("/api/dashboard", headers={"X-Dashboard-Password": "wrong"}).status_code == 401
 
     check("imports", imports)
     check("database", db)

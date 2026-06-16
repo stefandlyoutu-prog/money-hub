@@ -1,0 +1,270 @@
+/* ── Money Hub v2: простой интерфейс ── */
+
+.login {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: radial-gradient(ellipse at top, #1a2332 0%, #0a0d12 60%);
+}
+
+.login__card {
+  width: 100%;
+  max-width: 360px;
+  background: #12171f;
+  border: 1px solid #2a3444;
+  border-radius: 20px;
+  padding: 32px 28px;
+  text-align: center;
+}
+
+.login__logo {
+  font-size: 2.5rem;
+  color: #fcd34d;
+  margin-bottom: 8px;
+}
+
+.login__card h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.login__sub {
+  color: #7d8899;
+  font-size: 0.9rem;
+  margin: 8px 0 20px;
+}
+
+.login__input {
+  width: 100%;
+  font-size: 1.25rem;
+  text-align: center;
+  letter-spacing: 0.2em;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid #2a3444;
+  background: #0a0d12;
+  color: #e6ebf2;
+  margin-bottom: 12px;
+}
+
+.login__error {
+  color: #fb7185;
+  font-size: 0.85rem;
+  margin-bottom: 12px;
+}
+
+.btn--wide { width: 100%; padding: 14px; font-size: 1rem; }
+
+.app-shell {
+  max-width: 720px;
+  margin: 0 auto;
+  min-height: 100vh;
+  padding-bottom: 32px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #232b38;
+}
+
+.topbar__brand { display: flex; align-items: center; gap: 12px; }
+.topbar__logo { font-size: 1.75rem; color: #fcd34d; }
+.topbar h1 { font-size: 1.1rem; font-weight: 700; }
+.topbar p { font-size: 0.75rem; color: #7d8899; margin-top: 2px; }
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 12px 16px;
+  background: #12171f;
+  border-bottom: 1px solid #232b38;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.tab {
+  flex: 1;
+  padding: 12px 8px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #7d8899;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tab--active {
+  background: rgba(252, 211, 77, 0.12);
+  color: #fcd34d;
+}
+
+.tab-panel { padding: 16px; }
+.tab-panel[hidden] { display: none !important; }
+
+.hero-card {
+  background: linear-gradient(145deg, #1a2332, #12171f);
+  border: 1px solid #2a3444;
+  border-radius: 18px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.hero-card__label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #7d8899;
+  margin-bottom: 12px;
+}
+
+.hero-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.hero-stat { text-align: center; }
+.hero-stat__lbl {
+  display: block;
+  font-size: 0.7rem;
+  color: #7d8899;
+  margin-bottom: 4px;
+}
+.hero-stat__val {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+.hero-stat--green .hero-stat__val { color: #34d399; }
+.hero-stat--red .hero-stat__val { color: #fb7185; }
+
+.progress-wrap {
+  height: 8px;
+  background: #0a0d12;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #34d399, #fcd34d);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.hero-hint {
+  font-size: 0.82rem;
+  color: #7d8899;
+  line-height: 1.4;
+}
+
+.card-block {
+  background: #12171f;
+  border: 1px solid #232b38;
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.card-block--tip {
+  background: rgba(96, 165, 250, 0.06);
+  border-color: rgba(96, 165, 250, 0.2);
+}
+
+.block-title {
+  font-size: 0.95rem;
+  font-weight: 650;
+  margin-bottom: 10px;
+}
+
+.block-title--warn { color: #fbbf24; }
+
+.block-head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.section-hint {
+  font-size: 0.78rem;
+  color: #7d8899;
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.empty-plan {
+  font-size: 0.85rem;
+  color: #7d8899;
+  padding: 12px 0;
+  line-height: 1.45;
+}
+
+.tip {
+  font-size: 0.85rem;
+  color: #9ca3af;
+  line-height: 1.45;
+}
+
+.tip strong { color: #60a5fa; }
+
+.project-section { margin-bottom: 20px; }
+
+.project-section__title {
+  font-size: 0.88rem;
+  font-weight: 650;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar {
+  margin-bottom: 12px;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+/* Cards bigger touch targets */
+.card {
+  padding: 14px 16px;
+  margin-bottom: 8px;
+  border-radius: 12px;
+}
+
+.card__title { font-size: 0.92rem; }
+
+.plan-chip {
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  border-radius: 10px;
+  margin-bottom: 6px;
+  width: 100%;
+  justify-content: space-between;
+}
+
+.today-strip__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.scout__list { max-height: none; }
+
+.sphere-detail { margin-top: 12px; }
+
+@media (min-width: 721px) {
+  .app-shell { max-width: 860px; }
+  .hero-stat__val { font-size: 1.5rem; }
+}

@@ -18,6 +18,8 @@ services:
         sync: false
       - key: MONEY_ADMIN_IDS
         sync: false
+      - key: MONEY_DASHBOARD_PASSWORD
+        value: "1234"
       - key: MONEY_DASHBOARD_TOKEN
         sync: false
       - key: MONEY_AUTO_CLOSE_DAY

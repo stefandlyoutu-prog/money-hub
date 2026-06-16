@@ -1,4 +1,4 @@
-"""Опциональная защита API дашборда."""
+"""Опциональная защита API дашборда (пароль или legacy-токен)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from business_dashboard.config import DASHBOARD_TOKEN
+from business_dashboard.config import DASHBOARD_PASSWORD, DASHBOARD_TOKEN, dashboard_auth_enabled
 
 
 _PUBLIC_PREFIXES = (
@@ -19,15 +19,24 @@ _PUBLIC_PREFIXES = (
 )
 
 
+def _auth_ok(request: Request) -> bool:
+    pw = request.headers.get("X-Dashboard-Password", "").strip()
+    if DASHBOARD_PASSWORD and pw == DASHBOARD_PASSWORD:
+        return True
+    token = request.headers.get("X-Dashboard-Token", "").strip()
+    if DASHBOARD_TOKEN and token == DASHBOARD_TOKEN:
+        return True
+    return False
+
+
 class DashboardAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        if not DASHBOARD_TOKEN:
+        if not dashboard_auth_enabled():
             return await call_next(request)
         path = request.url.path
         if path == "/" or any(path.startswith(p) for p in _PUBLIC_PREFIXES):
             return await call_next(request)
         if path.startswith("/api/"):
-            token = request.headers.get("X-Dashboard-Token", "")
-            if token != DASHBOARD_TOKEN:
-                return JSONResponse({"detail": "Нужен заголовок X-Dashboard-Token"}, status_code=401)
+            if not _auth_ok(request):
+                return JSONResponse({"detail": "Неверный пароль"}, status_code=401)
         return await call_next(request)
