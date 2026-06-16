@@ -20,7 +20,7 @@ DASHBOARD_TOKEN: str = os.getenv("MONEY_DASHBOARD_TOKEN", "").strip()
 
 # Telegram-бот Money Hub (отдельный от M-bot / M-oracul)
 MONEY_BOT_TOKEN: str = os.getenv("MONEY_BOT_TOKEN", "").strip()
-MONEY_BOT_USERNAME: str = os.getenv("MONEY_BOT_USERNAME", "MoneyHubMorozov_bot").strip().lstrip("@")
+MONEY_BOT_USERNAME: str = os.getenv("MONEY_BOT_USERNAME", "MS_Moneybot").strip().lstrip("@")
 TELEGRAM_PROXY: str | None = os.getenv("TELEGRAM_PROXY", "").strip() or None
 
 # Публичный URL (Render: RENDER_EXTERNAL_URL или вручную)

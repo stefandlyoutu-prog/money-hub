@@ -47,10 +47,21 @@ def main() -> None:
         for p in ("/health", "/mini", "/api/mini/home", "/api/config"):
             assert p in paths, f"missing {p}"
 
+    def http():
+        from fastapi.testclient import TestClient
+        from business_dashboard.app import app
+
+        c = TestClient(app)
+        assert c.get("/health").json()["ok"]
+        assert c.get("/mini/").status_code == 200
+        assert c.get("/api/mini/home?user_id=5845195049").status_code == 200
+        assert c.get("/api/mini/home?user_id=1").status_code == 403
+
     check("imports", imports)
     check("database", db)
     check("metrics", metrics)
     check("routes", routes)
+    check("http", http)
 
     print()
     if errors:
