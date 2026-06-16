@@ -39,6 +39,12 @@ MONEY_HUB_PUBLIC_URL: str = (
 # Mini App path on same host
 MONEY_MINIAPP_PATH: str = os.getenv("MONEY_MINIAPP_PATH", "/mini").strip().rstrip("/") or "/mini"
 
+# Публичный URL Оракула для прокси воронки
+ORACLE_WEBAPP_URL: str = os.getenv("ORACLE_WEBAPP_URL", "https://moracul.onrender.com").strip().rstrip("/")
+
+# Admin user_id для запроса /api/admin/funnel у Оракула
+ORACLE_ADMIN_USER_ID: int = int(os.getenv("ORACLE_ADMIN_USER_ID", "5845195049") or "5845195049")
+
 
 def public_dashboard_url() -> str:
     return MONEY_HUB_PUBLIC_URL or "http://127.0.0.1:8765"

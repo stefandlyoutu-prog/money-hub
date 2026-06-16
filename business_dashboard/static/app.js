@@ -444,6 +444,74 @@ function renderAll() {
   if (state.chart) renderChart(state.chart);
 }
 
+async function loadFunnel() {
+  const stagesEl = document.getElementById("funnel-stages");
+  const insightsEl = document.getElementById("funnel-insights");
+  const eventsEl = document.getElementById("funnel-events");
+  if (!stagesEl) return;
+  stagesEl.innerHTML = "<p class='section-hint'>Загрузка…</p>";
+  try {
+    const r = await apiFetch("/api/funnel");
+    if (!r.ok) {
+      const msg = r.status === 502 ? "Оракул недоступен — деплой m-oracul с /api/admin/funnel" : `Ошибка ${r.status}`;
+      stagesEl.innerHTML = `<p class="empty">${escapeHtml(msg)}</p>`;
+      insightsEl.innerHTML = "";
+      eventsEl.innerHTML = "";
+      return;
+    }
+    const data = await r.json();
+    state.funnel = data;
+    renderFunnel(data);
+  } catch (e) {
+    stagesEl.innerHTML = `<p class="empty">Не удалось загрузить воронку</p>`;
+    console.error("funnel", e);
+  }
+}
+
+function renderFunnel(data) {
+  const stagesEl = document.getElementById("funnel-stages");
+  const insightsEl = document.getElementById("funnel-insights");
+  const eventsEl = document.getElementById("funnel-events");
+  if (!stagesEl || !data) return;
+
+  const stages = data.stages || [];
+  stagesEl.innerHTML = stages
+    .map(
+      (s) => `
+    <div class="funnel-stage">
+      <span class="funnel-stage__label">${escapeHtml(s.label)}</span>
+      <span class="funnel-stage__count">${s.count ?? 0}</span>
+      <span class="funnel-stage__hint">${escapeHtml(s.hint || "")}</span>
+    </div>`
+    )
+    .join("");
+
+  const insights = data.insights || [];
+  insightsEl.innerHTML = insights.length
+    ? insights.map((t) => `<div class="funnel-insight">${escapeHtml(t)}</div>`).join("")
+    : "";
+
+  const events = data.recent_events || [];
+  eventsEl.innerHTML = events.length
+    ? events
+        .map((e) => {
+          const name = e.username ? `@${e.username}` : e.first_name || `id${e.user_id}`;
+          return `<div class="funnel-event">
+        <span class="funnel-event__type">${escapeHtml(e.event_type)}</span>
+        <span class="funnel-event__user">${escapeHtml(name)} · ${escapeHtml((e.payload || "").slice(0, 60))}</span>
+        <span class="funnel-event__time">${fmtTime(e.created_at)}</span>
+      </div>`;
+        })
+        .join("")
+    : "<p class='empty'>Событий пока нет — нужен трафик в @MOracul_bot</p>";
+
+  const s = data.summary || {};
+  const meta = document.getElementById("funnel-meta");
+  if (meta) {
+    meta.textContent = `Пушей/7д: ${data.pushes_sent_week ?? s.pushes_sent_week ?? 0} · в очереди: ${data.pushes_pending ?? s.pushes_pending ?? 0}`;
+  }
+}
+
 async function load() {
   try {
     if (!document.getElementById("app") || document.getElementById("app").hasAttribute("hidden")) return;
@@ -620,7 +688,10 @@ document.getElementById("main-tabs")?.addEventListener("click", (e) => {
     p.hidden = !show;
     p.classList.toggle("tab-panel--active", show);
   });
+  if (name === "funnel") loadFunnel();
 });
+
+document.getElementById("btn-funnel-refresh")?.addEventListener("click", () => loadFunnel());
 
 document.getElementById("login-btn")?.addEventListener("click", () => {
   const pw = document.getElementById("login-password")?.value?.trim();

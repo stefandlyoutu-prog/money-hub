@@ -38,6 +38,7 @@
     <nav class="tabs" id="main-tabs">
       <button type="button" class="tab tab--active" data-tab="today">Сегодня</button>
       <button type="button" class="tab" data-tab="projects">Проекты</button>
+      <button type="button" class="tab" data-tab="funnel">Воронка</button>
       <button type="button" class="tab" data-tab="more">Ещё</button>
     </nav>
 
@@ -108,6 +109,21 @@
       <div class="project-section">
         <h3 class="project-section__title">🔵 Подключено, ждёт старта <span class="count" id="count-connected">0</span></h3>
         <div id="list-connected"></div>
+      </div>
+    </section>
+
+    <!-- ═══ ВОРОНКА (M-oracul) ═══ -->
+    <section class="tab-panel" id="tab-funnel" hidden>
+      <div class="card-block">
+        <div class="block-head-row">
+          <h2 class="block-title">🔮 Воронка @MOracul_bot</h2>
+          <button type="button" class="btn btn--sm" id="btn-funnel-refresh">Обновить</button>
+        </div>
+        <p class="section-hint">Кто зашёл, что нажал, пуши, счёт, оплата — за 7 дней и сегодня</p>
+        <div id="funnel-stages" class="funnel-stages"></div>
+        <div id="funnel-insights" class="funnel-insights"></div>
+        <h3 class="project-section__title">Последние события</h3>
+        <div id="funnel-events" class="funnel-events"></div>
       </div>
     </section>
 

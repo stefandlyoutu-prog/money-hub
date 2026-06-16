@@ -109,6 +109,45 @@
 .tab-panel { padding: 16px; }
 .tab-panel[hidden] { display: none !important; }
 
+.funnel-stages {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+}
+.funnel-stage {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+  padding: 10px 12px;
+  background: var(--surface-2, #1a1d24);
+  border-radius: 10px;
+  border-left: 3px solid var(--accent, #6c5ce7);
+}
+.funnel-stage__label { font-weight: 600; }
+.funnel-stage__count { font-size: 1.25rem; font-weight: 700; text-align: right; }
+.funnel-stage__hint { grid-column: 1 / -1; font-size: 0.8rem; opacity: 0.65; }
+.funnel-insights { margin: 12px 0; }
+.funnel-insight {
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: rgba(255, 193, 7, 0.12);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+.funnel-events { font-size: 0.85rem; }
+.funnel-event {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.funnel-event__type { opacity: 0.8; }
+.funnel-event__user { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.funnel-event__time { opacity: 0.55; font-size: 0.75rem; }
+
 .hero-card {
   background: linear-gradient(145deg, #1a2332, #12171f);
   border: 1px solid #2a3444;

@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from business_dashboard.config import DASHBOARD_TOKEN, MONEY_ADMIN_IDS, dashboard_auth_enabled, public_dashboard_url
+from business_dashboard.config import DASHBOARD_TOKEN, MONEY_ADMIN_IDS, ORACLE_ADMIN_USER_ID, ORACLE_WEBAPP_URL, dashboard_auth_enabled, public_dashboard_url
 from business_dashboard.daily import (
     add_to_today_plan,
     close_day_report,
@@ -393,3 +393,24 @@ def api_tg_channel_post(username: str, body: TgPostBody):
         return {"ok": True, "message_id": mid}
     except ChannelBotError as e:
         raise HTTPException(502, str(e)) from e
+
+
+@app.get("/api/funnel")
+async def api_funnel():
+    """Воронка M-oracul: клики, пуши, оплаты, гипотезы."""
+    import aiohttp
+
+    if not ORACLE_WEBAPP_URL.startswith("http"):
+        raise HTTPException(503, "ORACLE_WEBAPP_URL не задан")
+    url = f"{ORACLE_WEBAPP_URL}/api/admin/funnel?user_id={ORACLE_ADMIN_USER_ID}"
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=45)) as r:
+                if r.status == 403:
+                    raise HTTPException(403, "Нет доступа к воронке Оракула (ORACLE_ADMIN_USER_ID)")
+                if r.status >= 400:
+                    text = await r.text()
+                    raise HTTPException(r.status, text[:300])
+                return await r.json()
+    except aiohttp.ClientError as e:
+        raise HTTPException(502, f"Оракул недоступен: {e}") from e
