@@ -1,0 +1,11 @@
+.git/
+.venv/
+.venv-*/
+data/
+__pycache__/
+*.log
+*.stl
+*.3mf
+*.mov
+*.mp4
+.tools/
