@@ -1,0 +1,26 @@
+# Money Hub на Render: дашборд (PWA) + Telegram-бот + Mini App
+services:
+  - type: web
+    name: money-hub
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements-money-hub.txt
+    startCommand: python scripts/run_money_cloud.py
+    healthCheckPath: /health
+    envVars:
+      - key: MONEY_CLOUD
+        value: "1"
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: MONEY_BOT_TOKEN
+        sync: false
+      - key: MONEY_BOT_USERNAME
+        sync: false
+      - key: MONEY_ADMIN_IDS
+        sync: false
+      - key: MONEY_DASHBOARD_TOKEN
+        sync: false
+      - key: MONEY_AUTO_CLOSE_DAY
+        value: "1"
+      - key: TELEGRAM_PROXY
+        value: ""

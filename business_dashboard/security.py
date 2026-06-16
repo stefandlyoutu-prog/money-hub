@@ -9,12 +9,24 @@ from starlette.responses import JSONResponse
 from business_dashboard.config import DASHBOARD_TOKEN
 
 
+_PUBLIC_PREFIXES = (
+    "/static/",
+    "/mini",
+    "/webhook",
+    "/health",
+    "/api/config",
+    "/api/mini/",
+)
+
+
 class DashboardAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         if not DASHBOARD_TOKEN:
             return await call_next(request)
         path = request.url.path
-        if path.startswith("/api/") and path != "/api/config":
+        if path == "/" or any(path.startswith(p) for p in _PUBLIC_PREFIXES):
+            return await call_next(request)
+        if path.startswith("/api/"):
             token = request.headers.get("X-Dashboard-Token", "")
             if token != DASHBOARD_TOKEN:
                 return JSONResponse({"detail": "Нужен заголовок X-Dashboard-Token"}, status_code=401)

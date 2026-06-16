@@ -1,0 +1,110 @@
+:root {
+  --bg: #0c1117;
+  --card: #151c24;
+  --text: #f0f4f8;
+  --muted: #8a9bab;
+  --gold: #e8b923;
+  --green: #34d399;
+  --line: rgba(255, 255, 255, 0.08);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+.app { max-width: 480px; margin: 0 auto; padding: 16px 16px 28px; }
+
+.hero .eyebrow {
+  color: var(--gold);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.hero h1 { font-size: 26px; margin-top: 4px; }
+.hero .sub { color: var(--muted); margin-top: 6px; font-size: 14px; }
+
+.money-bar {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 18px 0;
+}
+
+.cell {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px;
+  text-align: center;
+}
+
+.cell.accent .val { color: var(--green); }
+
+.lbl { display: block; font-size: 10px; color: var(--muted); text-transform: uppercase; }
+.val { display: block; font-size: 17px; font-weight: 700; margin-top: 4px; }
+
+.label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+}
+
+.plan ul {
+  list-style: none;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 12px;
+}
+
+.plan li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+}
+
+.plan li:last-child { border-bottom: none; }
+
+.quick { margin: 20px 0; }
+
+.quick select {
+  width: 100%;
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.amounts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+
+.amounts button {
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 12px;
+  font-weight: 600;
+}
+
+.btn {
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  padding: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+.btn.primary { background: linear-gradient(135deg, var(--gold), #c9971a); color: #1a1200; }
+.btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--text); }

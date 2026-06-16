@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import List, Optional
@@ -12,7 +13,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from business_dashboard.config import DASHBOARD_TOKEN
+from business_dashboard.config import DASHBOARD_TOKEN, MONEY_ADMIN_IDS, public_dashboard_url
 from business_dashboard.daily import (
     add_to_today_plan,
     close_day_report,
@@ -46,6 +47,15 @@ from business_dashboard.storage import (
 )
 
 STATIC = Path(__file__).resolve().parent / "static"
+MINIAPP = STATIC / "miniapp"
+
+
+def _admin_user(user_id: int) -> bool:
+    if user_id <= 0:
+        return False
+    if not MONEY_ADMIN_IDS:
+        return True
+    return user_id in MONEY_ADMIN_IDS
 
 
 @asynccontextmanager
@@ -53,16 +63,29 @@ async def lifespan(app: FastAPI):
     init_db()
     rollover_periods()
     task = asyncio.create_task(run_background_loop())
-    yield
-    task.cancel()
+    from money_bot.cloud import start_cloud, stop_cloud
+
+    if os.getenv("MONEY_CLOUD", "").strip() in {"1", "true", "True"} or os.getenv(
+        "RENDER_EXTERNAL_URL", ""
+    ).strip():
+        await start_cloud()
     try:
-        await task
-    except asyncio.CancelledError:
-        pass
+        yield
+    finally:
+        await stop_cloud()
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
 
-app = FastAPI(title="Центр доходов", version="0.3.0", lifespan=lifespan)
+app = FastAPI(title="Центр доходов", version="0.4.0", lifespan=lifespan)
 app.add_middleware(DashboardAuthMiddleware)
+
+from money_bot.cloud import router_cloud  # noqa: E402
+
+app.include_router(router_cloud)
 
 
 @app.get("/")
@@ -70,12 +93,46 @@ def index():
     return FileResponse(STATIC / "index.html")
 
 
+@app.get("/mini")
+@app.get("/mini/")
+def mini_index():
+    return FileResponse(MINIAPP / "index.html")
+
+
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
+app.mount("/mini/static", StaticFiles(directory=MINIAPP), name="mini_static")
 
 
 @app.get("/api/config")
 def api_config():
-    return {"auth_required": bool(DASHBOARD_TOKEN), "version": "0.3.0"}
+    return {
+        "auth_required": bool(DASHBOARD_TOKEN),
+        "version": "0.4.0",
+        "dashboard_url": public_dashboard_url(),
+    }
+
+
+@app.get("/api/mini/home")
+def api_mini_home(user_id: int = Query(0)):
+    if not _admin_user(user_id):
+        raise HTTPException(403, "Нет доступа")
+    from business_dashboard.daily import get_money_metrics, get_today_plan
+    from business_dashboard.storage import list_ideas
+
+    m = get_money_metrics()
+    plan = get_today_plan()
+    ideas = [
+        {"slug": i["slug"], "title": i["title"][:40]}
+        for i in list_ideas()
+        if i.get("status") == "needs_action"
+    ][:12]
+    return {
+        "greeting": "Money Hub",
+        "metrics": m,
+        "plan": plan,
+        "ideas": ideas,
+        "dashboard_url": public_dashboard_url(),
+    }
 
 
 @app.get("/api/dashboard")

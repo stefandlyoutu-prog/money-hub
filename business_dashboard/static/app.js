@@ -549,3 +549,7 @@ document.addEventListener("click", (e) => {
 
 load();
 setInterval(load, 20000);
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/static/sw.js").catch(() => {});
+}

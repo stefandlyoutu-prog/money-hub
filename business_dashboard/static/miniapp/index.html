@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Money Hub</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="/mini/static/app.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="hero">
+      <p class="eyebrow">Money Hub</p>
+      <h1 id="greeting">Центр доходов</h1>
+      <p class="sub" id="subtitle">План · факт · разрыв</p>
+    </header>
+
+    <section class="money-bar">
+      <div class="cell">
+        <span class="lbl">План</span>
+        <span class="val" id="target">—</span>
+      </div>
+      <div class="cell accent">
+        <span class="lbl">Факт</span>
+        <span class="val" id="actual">—</span>
+      </div>
+      <div class="cell">
+        <span class="lbl">Разрыв</span>
+        <span class="val" id="gap">—</span>
+      </div>
+    </section>
+
+    <section class="plan" id="planSection">
+      <p class="label">План на сегодня</p>
+      <ul id="planList"></ul>
+    </section>
+
+    <section class="quick">
+      <p class="label">Быстро +₽</p>
+      <select id="ideaSlug"></select>
+      <div class="amounts">
+        <button type="button" data-amt="500">+500</button>
+        <button type="button" data-amt="1000">+1k</button>
+        <button type="button" data-amt="5000">+5k</button>
+      </div>
+    </section>
+
+    <footer class="cta">
+      <button type="button" class="btn primary" id="btnReport">Отчёт за день</button>
+      <button type="button" class="btn ghost" id="btnSummary">Сводка в чат</button>
+      <button type="button" class="btn ghost" id="btnDashboard">Полный дашборд</button>
+    </footer>
+  </div>
+  <script src="/mini/static/app.js"></script>
+</body>
+</html>
