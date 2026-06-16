@@ -4,8 +4,8 @@ services:
     name: money-hub
     runtime: python
     plan: free
-    buildCommand: pip install -r requirements-money-hub.txt
-    startCommand: python scripts/run_money_cloud.py
+    buildCommand: pip install --upgrade pip && pip install -r requirements-money-hub.txt
+    startCommand: python3 scripts/run_money_cloud.py
     healthCheckPath: /health
     envVars:
       - key: MONEY_CLOUD

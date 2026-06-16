@@ -65,14 +65,20 @@ async def lifespan(app: FastAPI):
     task = asyncio.create_task(run_background_loop())
     from money_bot.cloud import start_cloud, stop_cloud
 
-    if os.getenv("MONEY_CLOUD", "").strip() in {"1", "true", "True"} or os.getenv(
-        "RENDER_EXTERNAL_URL", ""
-    ).strip():
-        await start_cloud()
+    cloud_enabled = os.getenv("MONEY_CLOUD", "").strip() in {"1", "true", "True"} or bool(
+        os.getenv("RENDER_EXTERNAL_URL", "").strip()
+    )
+    cloud_task = asyncio.create_task(start_cloud()) if cloud_enabled else None
     try:
         yield
     finally:
         await stop_cloud()
+        if cloud_task and not cloud_task.done():
+            cloud_task.cancel()
+            try:
+                await cloud_task
+            except asyncio.CancelledError:
+                pass
         task.cancel()
         try:
             await task

@@ -35,39 +35,49 @@ async def start_cloud() -> None:
     if not MONEY_BOT_TOKEN:
         logger.warning("MONEY_BOT_TOKEN не задан — бот не запущен")
         return
-    _bot = Bot(
-        token=MONEY_BOT_TOKEN,
-        session=create_telegram_session(),
-        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
-    )
-    _dp = Dispatcher(storage=MemoryStorage())
-    _dp.include_router(money_router)
-    me = await _bot.get_me()
-    logger.info("Money Hub bot: @%s", me.username)
+    try:
+        _bot = Bot(
+            token=MONEY_BOT_TOKEN,
+            session=create_telegram_session(),
+            default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+        )
+        _dp = Dispatcher(storage=MemoryStorage())
+        _dp.include_router(money_router)
+        me = await _bot.get_me()
+        logger.info("Money Hub bot: @%s", me.username)
 
-    mini = public_miniapp_url()
-    if mini.startswith("https://"):
-        try:
-            await _bot.set_chat_menu_button(
-                menu_button=MenuButtonWebApp(
-                    text="Money Hub",
-                    web_app=WebAppInfo(url=mini),
+        mini = public_miniapp_url()
+        if mini.startswith("https://"):
+            try:
+                await _bot.set_chat_menu_button(
+                    menu_button=MenuButtonWebApp(
+                        text="Money Hub",
+                        web_app=WebAppInfo(url=mini),
+                    )
                 )
-            )
-            logger.info("Mini App menu: %s", mini)
-        except Exception as e:
-            logger.warning("Mini App menu: %s", e)
+                logger.info("Mini App menu: %s", mini)
+            except Exception as e:
+                logger.warning("Mini App menu: %s", e)
 
-    webhook_base = os.getenv("MONEY_WEBHOOK_URL", "").strip() or os.getenv(
-        "RENDER_EXTERNAL_URL", ""
-    ).strip()
-    if not webhook_base:
-        logger.warning("Webhook URL не задан — только polling локально")
-        return
-    webhook_url = webhook_base.rstrip("/") + "/webhook"
-    await _bot.delete_webhook(drop_pending_updates=True)
-    await _bot.set_webhook(webhook_url, drop_pending_updates=True)
-    logger.info("Webhook: %s", webhook_url)
+        webhook_base = os.getenv("MONEY_WEBHOOK_URL", "").strip() or os.getenv(
+            "RENDER_EXTERNAL_URL", ""
+        ).strip()
+        if not webhook_base:
+            logger.warning("Webhook URL не задан — бот без webhook")
+            return
+        webhook_url = webhook_base.rstrip("/") + "/webhook"
+        await _bot.delete_webhook(drop_pending_updates=True)
+        await _bot.set_webhook(webhook_url, drop_pending_updates=True)
+        logger.info("Webhook: %s", webhook_url)
+    except Exception as e:
+        logger.exception("Money Hub bot не запустился (сайт работает): %s", e)
+        if _bot:
+            try:
+                await _bot.session.close()
+            except Exception:
+                pass
+        _bot = None
+        _dp = None
 
 
 async def stop_cloud() -> None:
