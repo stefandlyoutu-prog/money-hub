@@ -182,6 +182,17 @@ def notify_task_result(
             seen.add(rp)
             all_files.append(rp)
 
+    qa_note = ""
+    from remote_agent.quality_gate import is_3d_task, validate_delivery
+
+    if all_files and is_3d_task(prompt, all_files):
+        qa = validate_delivery(all_files, prompt=prompt, strict=True)
+        all_files = qa.ok_files
+        if qa.issues:
+            qa_note = "\n\n" + qa.summary_ru()
+        if not qa.passed and not all_files:
+            error = error or "QA 3D не пройден — файлы не отправлены.\n" + "\n".join(qa.issues[:8])
+
     if error:
         text = (
             f"❌ <b>Не получилось (задача #{task_id})</b>\n\n"
@@ -199,7 +210,7 @@ def notify_task_result(
     text = (
         f"✅ <b>Готово (задача #{task_id})</b>\n\n"
         f"<b>📩 Ваш запрос:</b>\n{preview}\n\n"
-        f"<b>📋 Резюме агента:</b>\n{body}"
+        f"<b>📋 Резюме агента:</b>\n{body}{qa_note}"
     )
     for chunk in _split_message(text):
         _tg_post(
