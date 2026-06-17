@@ -55,8 +55,8 @@ async def send_task_result(
         body = html.escape(result[:3500]) if result else "Агент отработал, но не написал текст ответа."
         text = (
             f"✅ <b>Готово (задача #{task_id})</b>\n\n"
-            f"<b>Вы просили:</b>\n{preview}\n\n"
-            f"<b>Ответ Cursor:</b>\n{body}"
+            f"<b>📩 Ваш запрос:</b>\n{preview}\n\n"
+            f"<b>📋 Резюме агента:</b>\n{body}"
         )
 
     from money_bot.cloud import _bot

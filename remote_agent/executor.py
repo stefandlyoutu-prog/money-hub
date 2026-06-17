@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 
 from remote_agent.config import REMOTE_AGENT_BIN, REMOTE_AGENT_CWD, REMOTE_TASK_TIMEOUT_SEC
+from remote_agent.prompt import wrap_user_prompt
 
 
 def agent_available() -> tuple[bool, str]:
@@ -37,6 +38,7 @@ def run_agent_prompt(prompt: str) -> tuple[str, str]:
         return "", f"Папка проекта не найдена: {cwd}"
 
     env = os.environ.copy()
+    wrapped = wrap_user_prompt(prompt, project_dir=str(cwd))
     cmd = [
         bin_path,
         "-p",
@@ -44,7 +46,7 @@ def run_agent_prompt(prompt: str) -> tuple[str, str]:
         "--force",
         "--output-format",
         "text",
-        prompt,
+        wrapped,
     ]
     try:
         proc = subprocess.run(

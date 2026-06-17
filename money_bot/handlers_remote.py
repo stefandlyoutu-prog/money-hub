@@ -57,7 +57,7 @@ async def _submit(message: Message, prompt: str) -> None:
             f"{hint}\n\n"
             f"<b>Задача #{task['id']}</b>\n"
             f"<b>Ваш запрос:</b>\n<i>{prompt[:500].replace('<', '')}</i>\n\n"
-            f"Когда выполнится — пришлю ответ сюда.",
+            f"Когда выполнится — пришлю резюме: как понял задачу, что сделал, итог.",
             parse_mode="HTML",
         )
     except Exception as e:
