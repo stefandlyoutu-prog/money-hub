@@ -25,7 +25,8 @@ from remote_agent.config import REMOTE_AGENT_BIN
 from remote_agent.direct import is_direct_task, run_direct_task
 from remote_agent.executor import agent_available, run_agent_prompt
 from remote_agent.notify_mac import notify_task_result
-from remote_agent.voice import resolve_prompt
+from remote_agent.progress import TaskProgress, run_with_progress
+from remote_agent.voice import VOICE_PREFIX, resolve_prompt
 
 ATTACH_DIR = ROOT / "data" / "remote_attachments"
 
@@ -91,7 +92,10 @@ def _complete(
     result: str,
     error: str,
     extra_files: list[str] | None = None,
+    progress: TaskProgress | None = None,
 ) -> None:
+    if progress:
+        progress.done()
     try:
         notify_task_result(
             user_id,
@@ -126,40 +130,84 @@ def process_once() -> bool:
     raw_prompt = task["prompt"]
     print(f"[remote] task #{tid}: {raw_prompt[:80]}…")
 
-    if is_direct_task(raw_prompt):
-        result, error = run_direct_task(raw_prompt)
-        _complete(tid, user_id=user_id, raw_prompt=raw_prompt, result=result, error=error)
-        print(f"[remote] task #{tid} direct done error={bool(error)}")
-        return True
+    progress = TaskProgress(user_id, tid, raw_prompt=raw_prompt)
+    progress.start("Mac взял в работу", detail="Обычно < 10 сек до старта")
 
-    prompt, attach_paths, attach_err = ingest_prompt_attachments(
-        raw_prompt, download_dir=ATTACH_DIR / str(tid)
-    )
-    if attach_err and not prompt:
-        _complete(tid, user_id=user_id, raw_prompt=raw_prompt, result="", error=attach_err)
-        return True
+    try:
+        if is_direct_task(raw_prompt):
+            progress.update("⚡ Быстрая команда Mac…")
+            result, error = run_direct_task(raw_prompt)
+            _complete(
+                tid, user_id=user_id, raw_prompt=raw_prompt,
+                result=result, error=error, progress=progress,
+            )
+            print(f"[remote] task #{tid} direct done error={bool(error)}")
+            return True
 
-    prompt, prep_err = resolve_prompt(prompt)
-    if prep_err:
-        _complete(tid, user_id=user_id, raw_prompt=raw_prompt, result="", error=prep_err)
-        print(f"[remote] task #{tid} prep failed: {prep_err}")
-        return True
-    if raw_prompt != prompt:
-        print(f"[remote] voice → {prompt[:120]}…")
+        has_attach = any(
+            x in raw_prompt for x in ("__FILE__:", "__PHOTO__:", "__DOC__:")
+        )
+        if has_attach:
+            progress.update("📥 Скачиваю файлы с Telegram…", detail="На Mac")
 
-    result, error = run_agent_prompt(prompt, attachment_paths=attach_paths)
-    if raw_prompt != prompt and not error:
-        result = f"🎤 Расшифровано: {prompt[:500]}\n\n{result}"
-    _complete(
-        tid,
-        user_id=user_id,
-        raw_prompt=raw_prompt,
-        result=result,
-        error=error,
-        extra_files=attach_paths,
-    )
-    print(f"[remote] task #{tid} done error={bool(error)}")
-    return True
+        prompt, attach_paths, attach_err = ingest_prompt_attachments(
+            raw_prompt, download_dir=ATTACH_DIR / str(tid)
+        )
+        if attach_err and not prompt:
+            _complete(
+                tid, user_id=user_id, raw_prompt=raw_prompt,
+                result="", error=attach_err, progress=progress,
+            )
+            return True
+
+        is_voice = VOICE_PREFIX in prompt
+        if is_voice:
+            progress.update(
+                "🎤 Расшифровываю голос…",
+                detail="Whisper 1–3 мин для длинных сообщений",
+            )
+
+        prompt, prep_err = resolve_prompt(prompt)
+        if prep_err:
+            _complete(
+                tid, user_id=user_id, raw_prompt=raw_prompt,
+                result="", error=prep_err, progress=progress,
+            )
+            print(f"[remote] task #{tid} prep failed: {prep_err}")
+            return True
+
+        if is_voice:
+            preview = (prompt[:150] + "…") if len(prompt) > 150 else prompt
+            progress.update("✍️ Голос расшифрован", detail=preview)
+            print(f"[remote] voice → {prompt[:120]}…")
+
+        result, error = run_with_progress(
+            progress,
+            lambda: run_agent_prompt(prompt, attachment_paths=attach_paths),
+            stage="🧠 Cursor Agent думает…",
+            detail="До 15 мин — статус обновляется каждые 40 сек",
+        )
+        if is_voice and not error:
+            result = f"🎤 Расшифровано: {prompt[:500]}\n\n{result}"
+
+        _complete(
+            tid,
+            user_id=user_id,
+            raw_prompt=raw_prompt,
+            result=result,
+            error=error,
+            extra_files=attach_paths,
+            progress=progress,
+        )
+        print(f"[remote] task #{tid} done error={bool(error)}")
+        return True
+    except Exception as e:
+        progress.update("❌ Сбой на Mac", detail=str(e)[:200])
+        _complete(
+            tid, user_id=user_id, raw_prompt=raw_prompt,
+            result="", error=str(e), progress=progress,
+        )
+        raise
 
 
 def main() -> None:
@@ -172,7 +220,7 @@ def main() -> None:
 
     print(f"Hub: {_hub_url()}")
     ok, path = agent_available()
-    print(f"Agent: {path} ({'ok' if ok else 'MISSING — curl https://cursor.com/install -fsS | bash'})")
+    print(f"Agent: {path} ({'ok' if ok else 'MISSING'})")
 
     while True:
         try:

@@ -29,10 +29,10 @@ def _skip_notify(prompt: str) -> bool:
     return any(p.startswith(x) for x in _INTERNAL_PREFIXES)
 
 
-def _tg_post(method: str, data: dict, *, files: dict | None = None) -> None:
+def _tg_post(method: str, data: dict, *, files: dict | None = None) -> dict:
     token = _token()
     if not token:
-        return
+        return {}
     url = f"https://api.telegram.org/bot{token}/{method}"
     if files:
         import uuid
@@ -68,7 +68,56 @@ def _tg_post(method: str, data: dict, *, files: dict | None = None) -> None:
             headers={"Content-Type": "application/json", "User-Agent": _BROWSER_UA},
             method="POST",
         )
-    urllib.request.urlopen(req, timeout=120)
+    with urllib.request.urlopen(req, timeout=120) as r:
+        return json.load(r)
+
+
+def send_chat_action(chat_id: int, action: str = "typing") -> None:
+    if chat_id <= 0:
+        return
+    try:
+        _tg_post("sendChatAction", {"chat_id": chat_id, "action": action})
+    except Exception:
+        pass
+
+
+def send_status_message(chat_id: int, text: str) -> int | None:
+    if chat_id <= 0:
+        return None
+    try:
+        data = _tg_post(
+            "sendMessage",
+            {"chat_id": chat_id, "text": text, "parse_mode": "HTML"},
+        )
+        return int(data.get("result", {}).get("message_id", 0)) or None
+    except Exception:
+        return None
+
+
+def edit_status_message(chat_id: int, message_id: int | None, text: str) -> None:
+    if chat_id <= 0 or not message_id:
+        return
+    try:
+        _tg_post(
+            "editMessageText",
+            {
+                "chat_id": chat_id,
+                "message_id": message_id,
+                "text": text,
+                "parse_mode": "HTML",
+            },
+        )
+    except Exception:
+        pass
+
+
+def remove_status_message(chat_id: int, message_id: int | None) -> None:
+    if chat_id <= 0 or not message_id:
+        return
+    try:
+        _tg_post("deleteMessage", {"chat_id": chat_id, "message_id": message_id})
+    except Exception:
+        pass
 
 
 def send_document(chat_id: int, path: str, *, caption: str = "") -> None:

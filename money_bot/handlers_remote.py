@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 from aiogram import F, Router
+from aiogram.enums import ChatAction
 from aiogram.filters import Command, CommandObject
 from aiogram.types import Message
 
@@ -66,16 +67,19 @@ async def _submit(message: Message, prompt: str) -> None:
         await message.answer("Напиши задачу текстом, голосом или файлом с подписью.")
         return
     try:
+        await message.bot.send_chat_action(message.chat.id, ChatAction.TYPING)
         task = create_task(message.from_user.id if message.from_user else 0, prompt.strip())
         st = worker_status()
-        hint = "⏳ Mac принял в очередь, выполняю…" if st["online"] else (
-            f"📥 Задача #{task['id']} в очереди (Mac offline)."
-        )
+        if st["online"]:
+            hint = "⏳ Mac онлайн — скоро придёт <b>живой статус</b> задачи"
+        else:
+            hint = f"📥 Задача #{task['id']} в очереди — Mac offline, выполню когда проснётся"
         await message.answer(
             f"{hint}\n\n"
             f"<b>Задача #{task['id']}</b>\n"
             f"<b>Ваш запрос:</b>\n<i>{format_prompt_preview(prompt).replace('<', '')}</i>\n\n"
-            f"Пришлю резюме: как понял · что сделал · итог (+ файлы если есть).",
+            f"Этапы: Mac взял → расшифровка (голос) → агент → ответ.\n"
+            f"Сообщение со статусом обновляется каждые 40 сек.",
             parse_mode="HTML",
         )
     except Exception as e:
@@ -178,8 +182,11 @@ async def agent_voice(message: Message) -> None:
     payload = f"{VOICE_PREFIX}{file_id}"
     if cap:
         payload = f"{cap}\n{payload}"
+    await message.bot.send_chat_action(message.chat.id, ChatAction.RECORD_VOICE)
     await message.answer(
-        "🎤 <b>Голос принят</b>\n\nMac расшифрует и выполнит…\n\n" + _status_text(),
+        "🎤 <b>Голос принят</b>\n\n"
+        "Сейчас придёт сообщение со статусом:\n"
+        "расшифровка → агент → ответ.\n\n" + _status_text(),
         parse_mode="HTML",
     )
     await _submit(message, payload)
