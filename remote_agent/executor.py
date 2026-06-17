@@ -40,6 +40,7 @@ def run_agent_prompt(prompt: str) -> tuple[str, str]:
     cmd = [
         bin_path,
         "-p",
+        "--trust",
         "--force",
         "--output-format",
         "text",

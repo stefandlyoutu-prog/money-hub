@@ -16,6 +16,7 @@ _PUBLIC_PREFIXES = (
     "/health",
     "/api/config",
     "/api/mini/",
+    "/api/remote/worker/",
 )
 
 
