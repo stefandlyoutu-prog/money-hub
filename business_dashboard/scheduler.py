@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from datetime import date, datetime
 
 from business_dashboard.config import AUTO_CLOSE_DAY
@@ -32,4 +33,13 @@ async def run_background_loop() -> None:
                     last_close_date = today
         except Exception as e:
             logger.warning("scheduler: %s", e)
+        if os.getenv("MONEY_CLOUD", "").strip() in {"1", "true", "True"} or os.getenv(
+            "RENDER_EXTERNAL_URL", ""
+        ).strip():
+            try:
+                from money_bot.cloud import maintain_webhook
+
+                await maintain_webhook()
+            except Exception as e:
+                logger.warning("webhook watchdog: %s", e)
         await asyncio.sleep(45)

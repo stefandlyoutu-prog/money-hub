@@ -42,21 +42,24 @@ async def _submit(message: Message, prompt: str) -> None:
     if not prompt.strip():
         await message.answer("Напиши задачу текстом или голосом.")
         return
-    task = create_task(uid, prompt.strip())
-    st = worker_status()
-    if st["online"]:
-        hint = "⏳ Mac принял в очередь, выполняю…"
-    else:
-        hint = (
-            "📥 Задача #{} в очереди.\n"
-            "Mac сейчас недоступен — выполню, когда проснётся "
-            "(воркер на Wi‑Fi подхватит автоматически)."
-        ).format(task["id"])
-    await message.answer(
-        f"{hint}\n\n<b>Задача #{task['id']}</b>\n"
-        f"<i>{prompt[:500]}</i>",
-        parse_mode="HTML",
-    )
+    try:
+        task = create_task(uid, prompt.strip())
+        st = worker_status()
+        if st["online"]:
+            hint = "⏳ Mac принял в очередь, выполняю…"
+        else:
+            hint = (
+                "📥 Задача #{} в очереди.\n"
+                "Mac сейчас недоступен — выполню, когда проснётся."
+            ).format(task["id"])
+        await message.answer(
+            f"{hint}\n\n<b>Задача #{task['id']}</b>\n"
+            f"<i>{prompt[:500].replace('<', '')}</i>",
+            parse_mode="HTML",
+        )
+    except Exception as e:
+        logger.exception("submit task: %s", e)
+        await message.answer(f"❌ Не удалось создать задачу: {e}")
 
 
 @router.message(Command("agent"))

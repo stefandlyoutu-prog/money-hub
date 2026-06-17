@@ -109,8 +109,39 @@ def worker_status() -> Dict[str, Any]:
     }
 
 
+def recover_stale_tasks(max_age_minutes: int = 20) -> int:
+    """Зависшие running → снова queued."""
+    from datetime import datetime, timezone
+
+    ensure_remote()
+    n = 0
+    now = datetime.now(timezone.utc)
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT id, started_at FROM remote_tasks WHERE status = 'running'"
+        ).fetchall()
+        for row in rows:
+            started = row["started_at"]
+            if not started:
+                continue
+            try:
+                dt = datetime.fromisoformat(started.replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+            except ValueError:
+                continue
+            if (now - dt).total_seconds() > max_age_minutes * 60:
+                conn.execute(
+                    "UPDATE remote_tasks SET status = 'queued', started_at = NULL WHERE id = ?",
+                    (row["id"],),
+                )
+                n += 1
+    return n
+
+
 def claim_next_task() -> Optional[Dict[str, Any]]:
     ensure_remote()
+    recover_stale_tasks()
     now = _now()
     with _connect() as conn:
         row = conn.execute(

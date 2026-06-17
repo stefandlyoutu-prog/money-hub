@@ -68,17 +68,12 @@ async def lifespan(app: FastAPI):
     cloud_enabled = os.getenv("MONEY_CLOUD", "").strip() in {"1", "true", "True"} or bool(
         os.getenv("RENDER_EXTERNAL_URL", "").strip()
     )
-    cloud_task = asyncio.create_task(start_cloud()) if cloud_enabled else None
+    if cloud_enabled:
+        await start_cloud()
     try:
         yield
     finally:
         await stop_cloud()
-        if cloud_task and not cloud_task.done():
-            cloud_task.cancel()
-            try:
-                await cloud_task
-            except asyncio.CancelledError:
-                pass
         task.cancel()
         try:
             await task
@@ -476,3 +471,18 @@ async def api_remote_complete(
         raise HTTPException(404, "Задача не найдена")
     await send_task_result(int(row["user_id"]), task_id, result=body.result, error=body.error)
     return {"ok": True, "task": row}
+
+
+class RemoteTaskCreateBody(BaseModel):
+    user_id: int
+    prompt: str
+
+
+@app.post("/api/remote/tasks")
+async def api_remote_create_task(body: RemoteTaskCreateBody):
+    """Создать задачу (только admin user_id)."""
+    if body.user_id <= 0 or not _admin_user(body.user_id):
+        raise HTTPException(403, "Нет доступа")
+    from remote_agent.storage import create_task
+
+    return create_task(body.user_id, body.prompt.strip())
