@@ -99,6 +99,9 @@ async def cmd_help(message: Message) -> None:
         "/money report — закрыть день\n"
         "/money online — что запустить онлайн\n"
         "/money assets · /money scout\n\n"
+        "<b>Управление Mac / Cursor:</b>\n"
+        "/agent — режим с телефона\n"
+        "/cmd текст — задача агенту\n\n"
         "Полный UI — кнопка «Полный дашборд» или «Приложение».",
         parse_mode="HTML",
         reply_markup=kb_main(),

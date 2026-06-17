@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -414,3 +414,65 @@ async def api_funnel():
                 return await r.json()
     except aiohttp.ClientError as e:
         raise HTTPException(502, f"Оракул недоступен: {e}") from e
+
+
+def _check_worker_secret(secret: str) -> None:
+    from remote_agent.config import REMOTE_WORKER_SECRET
+
+    if not REMOTE_WORKER_SECRET or secret != REMOTE_WORKER_SECRET:
+        raise HTTPException(403, "Неверный секрет воркера")
+
+
+class WorkerHeartbeatBody(BaseModel):
+    hostname: str = ""
+    agent_version: str = ""
+
+
+class WorkerCompleteBody(BaseModel):
+    result: str = ""
+    error: str = ""
+
+
+@app.get("/api/remote/status")
+def api_remote_status():
+    from remote_agent.storage import worker_status
+
+    return worker_status()
+
+
+@app.post("/api/remote/worker/heartbeat")
+def api_remote_heartbeat(
+    body: WorkerHeartbeatBody,
+    x_remote_worker_secret: str = Header(default=""),
+):
+    _check_worker_secret(x_remote_worker_secret)
+    from remote_agent.storage import worker_heartbeat
+
+    worker_heartbeat(body.hostname, body.agent_version)
+    return {"ok": True}
+
+
+@app.post("/api/remote/worker/claim")
+def api_remote_claim(x_remote_worker_secret: str = Header(default="")):
+    _check_worker_secret(x_remote_worker_secret)
+    from remote_agent.storage import claim_next_task
+
+    task = claim_next_task()
+    return {"task": task}
+
+
+@app.post("/api/remote/worker/complete/{task_id}")
+async def api_remote_complete(
+    task_id: int,
+    body: WorkerCompleteBody,
+    x_remote_worker_secret: str = Header(default=""),
+):
+    _check_worker_secret(x_remote_worker_secret)
+    from remote_agent.notify import send_task_result
+    from remote_agent.storage import complete_task, get_task
+
+    row = complete_task(task_id, result=body.result, error=body.error)
+    if not row:
+        raise HTTPException(404, "Задача не найдена")
+    await send_task_result(int(row["user_id"]), task_id, result=body.result, error=body.error)
+    return {"ok": True, "task": row}

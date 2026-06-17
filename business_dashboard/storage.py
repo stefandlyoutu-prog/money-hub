@@ -289,6 +289,9 @@ def init_db() -> None:
         from telegram_channels.storage import init_tg_channels
 
         init_tg_channels(conn)
+        from remote_agent.storage import init_remote
+
+        init_remote(conn)
         from business_dashboard.idea_scout import init_opportunities
         init_opportunities(conn)
 

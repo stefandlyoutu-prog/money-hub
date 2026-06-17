@@ -20,6 +20,7 @@ from business_dashboard.config import (
     public_miniapp_url,
 )
 from money_bot.handlers import router as money_router
+from money_bot.handlers_remote import router as remote_router
 from money_bot.telegram_net import create_telegram_session
 
 logger = logging.getLogger("money_bot.cloud")
@@ -43,6 +44,7 @@ async def start_cloud() -> None:
         )
         _dp = Dispatcher(storage=MemoryStorage())
         _dp.include_router(money_router)
+        _dp.include_router(remote_router)
         me = await _bot.get_me()
         logger.info("Money Hub bot: @%s", me.username)
 
