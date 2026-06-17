@@ -72,6 +72,8 @@ async def cmd_start(message: Message, command: CommandObject) -> None:
         "◈ <b>Money Hub</b>\n\n"
         "План, факт, идеи и отчёты — с телефона или Mac.\n\n"
         "• /money — сводка и быстрые команды\n"
+        "• Любой текст или 🎤 — задача Cursor на Mac\n"
+        "• /cmd … — одна задача явно\n"
         "• Кнопка «Приложение» — упрощённый вид\n"
         "• «Полный дашборд» — все таблицы и графики\n\n"
         + (f"Mini App: {mini}\n" if mini.startswith("https://") else ""),

@@ -15,7 +15,8 @@ from remote_agent.voice import VOICE_PREFIX
 logger = logging.getLogger(__name__)
 router = Router()
 
-_agent_mode: set[int] = set()
+# По умолчанию любой текст админа = задача; /agent off временно отключает
+_agent_off: set[int] = set()
 
 
 def _allowed(uid: int | None) -> bool:
@@ -73,8 +74,9 @@ async def cmd_agent(message: Message, command: CommandObject) -> None:
         await message.answer(
             "🖥 <b>Управление Cursor с телефона</b>\n\n"
             "/cmd текст — одна задача\n"
-            "/agent on — любое сообщение = задача\n"
-            "/agent off — выключить режим\n"
+            "Любой текст — сразу задача (по умолчанию)\n"
+            "/agent off — не отправлять текст как задачу\n"
+            "/agent on — снова включить\n"
             "/agent status — Mac онлайн?\n"
             "/agent list — последние задачи\n"
             "🎤 Голосовое — распознаю и отправлю агенту\n\n"
@@ -83,12 +85,12 @@ async def cmd_agent(message: Message, command: CommandObject) -> None:
         )
         return
     if sub == "on":
-        _agent_mode.add(uid)
-        await message.answer("✅ Режим агента включён. Пиши задачи обычным текстом.\n\n" + _status_text())
+        _agent_off.discard(uid)
+        await message.answer("✅ Любой текст снова уходит агенту.\n\n" + _status_text())
         return
     if sub == "off":
-        _agent_mode.discard(uid)
-        await message.answer("Режим агента выключен. Используй /cmd …")
+        _agent_off.add(uid)
+        await message.answer("Режим агента выключен. Используй /cmd … или /agent on")
         return
     if sub == "status":
         await message.answer(_status_text())
@@ -122,7 +124,13 @@ async def cmd_cmd(message: Message, command: CommandObject) -> None:
 @router.message(F.text & ~F.text.startswith("/"))
 async def agent_mode_text(message: Message) -> None:
     uid = message.from_user.id if message.from_user else 0
-    if not _allowed(uid) or uid not in _agent_mode:
+    if not _allowed(uid):
+        return
+    if uid in _agent_off:
+        await message.answer(
+            "Режим агента выключен (/agent off).\n"
+            "Напиши /cmd … или включи /agent on"
+        )
         return
     await _submit(message, message.text or "")
 
