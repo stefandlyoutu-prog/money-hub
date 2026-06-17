@@ -37,10 +37,9 @@ cat > "$PLIST" <<EOF
   <string>com.morozov.remote-worker</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/usr/bin/caffeinate</string>
-    <string>-dims</string>
-    <string>$(command -v python3)</string>
-    <string>$ROOT/scripts/remote_worker.py</string>
+    <string>/bin/bash</string>
+    <string>-lc</string>
+    <string>cd "$ROOT" &amp;&amp; set -a &amp;&amp; source .env &amp;&amp; set +a &amp;&amp; exec caffeinate -dims python3 scripts/remote_worker.py</string>
   </array>
   <key>WorkingDirectory</key>
   <string>$ROOT</string>
