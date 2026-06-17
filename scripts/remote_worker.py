@@ -22,6 +22,7 @@ load_dotenv(ROOT / ".env")
 
 from remote_agent.config import REMOTE_AGENT_BIN
 from remote_agent.executor import agent_available, run_agent_prompt
+from remote_agent.voice import resolve_prompt
 
 
 def _hub_url() -> str:
@@ -83,9 +84,18 @@ def process_once() -> bool:
     if not task:
         return False
     tid = int(task["id"])
-    prompt = task["prompt"]
-    print(f"[remote] task #{tid}: {prompt[:80]}…")
+    raw_prompt = task["prompt"]
+    print(f"[remote] task #{tid}: {raw_prompt[:80]}…")
+    prompt, prep_err = resolve_prompt(raw_prompt)
+    if prep_err:
+        _api("POST", f"/api/remote/worker/complete/{tid}", {"result": "", "error": prep_err})
+        print(f"[remote] task #{tid} prep failed: {prep_err}")
+        return True
+    if raw_prompt != prompt:
+        print(f"[remote] voice → {prompt[:120]}…")
     result, error = run_agent_prompt(prompt)
+    if raw_prompt != prompt and not error:
+        result = f"🎤 <b>Распознано:</b> {prompt[:500]}\n\n{result}"
     _api(
         "POST",
         f"/api/remote/worker/complete/{tid}",

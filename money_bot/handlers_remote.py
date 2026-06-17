@@ -10,6 +10,7 @@ from aiogram.types import Message
 
 from business_dashboard.config import MONEY_ADMIN_IDS
 from remote_agent.storage import create_task, list_recent_tasks, worker_status
+from remote_agent.voice import VOICE_PREFIX
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -126,45 +127,15 @@ async def agent_mode_text(message: Message) -> None:
 async def agent_voice(message: Message) -> None:
     uid = message.from_user.id if message.from_user else 0
     if not _allowed(uid):
+        await message.answer("Нет доступа.")
         return
-    status = await message.answer("🎤 Слушаю…")
-    try:
-        from aiogram import Bot
-
-        bot: Bot = message.bot
-        file = await bot.get_file(message.voice.file_id if message.voice else message.audio.file_id)
-        data = await bot.download_file(file.file_path)
-        audio_bytes = data.read()
-        text = await _transcribe(audio_bytes)
-        if not text:
-            await status.edit_text("Не разобрал голос — напиши текстом.")
-            return
-        cap = (message.caption or "").strip()
-        prompt = f"{cap}\n{text}".strip() if cap else text
-        await status.edit_text(f"🎤 Распознано:\n<i>{text[:400]}</i>", parse_mode="HTML")
-        await _submit(message, prompt)
-    except Exception as e:
-        logger.exception("voice remote: %s", e)
-        await status.edit_text(f"Ошибка голоса: {e}")
-
-
-async def _transcribe(audio_bytes: bytes) -> str:
-    """Groq/OpenAI whisper или заглушка."""
-    import os
-
-    key = os.getenv("GROK_API_KEY", "") or os.getenv("OPENAI_API_KEY", "")
-    if not key:
-        return ""
-    import aiohttp
-
-    url = "https://api.groq.com/openai/v1/audio/transcriptions"
-    form = aiohttp.FormData()
-    form.add_field("file", audio_bytes, filename="voice.ogg", content_type="audio/ogg")
-    form.add_field("model", "whisper-large-v3")
-    headers = {"Authorization": f"Bearer {key}"}
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, data=form, headers=headers, timeout=aiohttp.ClientTimeout(total=90)) as r:
-            if r.status != 200:
-                return ""
-            data = await r.json()
-            return (data.get("text") or "").strip()
+    file_id = (message.voice or message.audio).file_id
+    cap = (message.caption or "").strip()
+    payload = f"{VOICE_PREFIX}{file_id}"
+    if cap:
+        payload = f"{cap}\n{payload}"
+    await message.answer(
+        "🎤 <b>Голос принят</b>\n\nMac расшифрует и выполнит задачу…\n\n" + _status_text(),
+        parse_mode="HTML",
+    )
+    await _submit(message, payload)

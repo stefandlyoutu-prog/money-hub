@@ -26,3 +26,7 @@ services:
         value: "1"
       - key: TELEGRAM_PROXY
         value: ""
+      - key: REMOTE_WORKER_SECRET
+        sync: false
+      - key: GROK_API_KEY
+        sync: false
