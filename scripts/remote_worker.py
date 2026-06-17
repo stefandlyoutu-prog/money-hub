@@ -95,7 +95,7 @@ def process_once() -> bool:
         print(f"[remote] voice → {prompt[:120]}…")
     result, error = run_agent_prompt(prompt)
     if raw_prompt != prompt and not error:
-        result = f"🎤 <b>Распознано:</b> {prompt[:500]}\n\n{result}"
+        result = f"🎤 Распознано: {prompt[:500]}\n\n{result}"
     _api(
         "POST",
         f"/api/remote/worker/complete/{tid}",

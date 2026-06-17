@@ -41,7 +41,7 @@ cat > "$PLIST" <<EOF
   <array>
     <string>/bin/bash</string>
     <string>-lc</string>
-    <string>cd "$ROOT" &amp;&amp; set -a &amp;&amp; source .env &amp;&amp; set +a &amp;&amp; exec caffeinate -dims python3 scripts/remote_worker.py</string>
+    <string>cd "$ROOT" &amp;&amp; set -a &amp;&amp; source .env &amp;&amp; set +a &amp;&amp; exec caffeinate -dims env PYTHONUNBUFFERED=1 python3 -u scripts/remote_worker.py</string>
   </array>
   <key>WorkingDirectory</key>
   <string>$ROOT</string>

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import json
 import logging
 import os
@@ -14,9 +15,9 @@ async def send_task_result(user_id: int, task_id: int, *, result: str = "", erro
     if user_id <= 0:
         return
     if error:
-        text = f"❌ <b>Задача #{task_id}</b>\n\n{error[:3500]}"
+        text = f"❌ <b>Задача #{task_id}</b>\n\n{html.escape(error[:3500])}"
     else:
-        body = result[:3800] if result else "(пустой ответ)"
+        body = html.escape(result[:3800]) if result else "(пустой ответ)"
         text = f"✅ <b>Задача #{task_id} готова</b>\n\n{body}"
 
     from money_bot.cloud import _bot

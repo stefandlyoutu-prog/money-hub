@@ -110,6 +110,7 @@ async def cmd_agent(message: Message, command: CommandObject) -> None:
 async def cmd_cmd(message: Message, command: CommandObject) -> None:
     uid = message.from_user.id if message.from_user else 0
     if not _allowed(uid):
+        await message.answer("Нет доступа.")
         return
     text = (command.args or "").strip()
     if not text:

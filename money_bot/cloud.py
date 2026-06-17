@@ -133,6 +133,9 @@ async def maintain_webhook() -> bool:
     except Exception as e:
         logger.warning("maintain_webhook: %s", e)
         return False
+
+
+async def stop_cloud() -> None:
     global _bot, _dp
     # Не удаляем webhook при redeploy — иначе бот «молчит» до ручного fix
     if _bot:
