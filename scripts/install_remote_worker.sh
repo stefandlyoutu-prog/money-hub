@@ -67,7 +67,16 @@ echo "Воркер запущен: $PLIST"
 echo "Логи: $LOG_DIR/"
 
 echo ""
-echo "=== 4/4 CURSOR_API_KEY ==="
+echo "=== 4/5 ffmpeg (голосовые) ==="
+if command -v ffmpeg >/dev/null 2>&1; then
+  echo "ffmpeg: $(command -v ffmpeg)"
+else
+  echo "ffmpeg не найден — Telegram .oga всё равно конвертируется в .ogg"
+  echo "Для редких форматов: brew install ffmpeg"
+fi
+
+echo ""
+echo "=== 5/5 CURSOR_API_KEY ==="
 if ! grep -q '^CURSOR_API_KEY=' "$ENV_FILE" 2>/dev/null; then
   echo "Добавь в .env и Render:"
   echo "  CURSOR_API_KEY=ключ с https://cursor.com/settings"
