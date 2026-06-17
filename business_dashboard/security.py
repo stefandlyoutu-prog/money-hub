@@ -26,6 +26,12 @@ def _auth_ok(request: Request) -> bool:
     token = request.headers.get("X-Dashboard-Token", "").strip()
     if DASHBOARD_TOKEN and token == DASHBOARD_TOKEN:
         return True
+    if request.url.path.startswith("/api/remote/worker/"):
+        from remote_agent.config import REMOTE_WORKER_SECRET
+
+        secret = request.headers.get("X-Remote-Worker-Secret", "").strip()
+        if REMOTE_WORKER_SECRET and secret == REMOTE_WORKER_SECRET:
+            return True
     return False
 
 
