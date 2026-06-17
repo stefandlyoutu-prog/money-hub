@@ -10,15 +10,54 @@ import urllib.request
 
 logger = logging.getLogger(__name__)
 
+_INTERNAL_PREFIXES = ("__INTERNAL__:", "__probe__")
 
-async def send_task_result(user_id: int, task_id: int, *, result: str = "", error: str = "") -> None:
+
+def _skip_notify(prompt: str) -> bool:
+    p = (prompt or "").strip()
+    return any(p.startswith(x) for x in _INTERNAL_PREFIXES)
+
+
+def _preview_prompt(prompt: str, limit: int = 300) -> str:
+    from remote_agent.voice import VOICE_PREFIX
+
+    lines = []
+    for line in (prompt or "").split("\n"):
+        if line.startswith(VOICE_PREFIX):
+            continue
+        if line.strip():
+            lines.append(line.strip())
+    text = "\n".join(lines).strip() or "(без текста)"
+    return html.escape(text[:limit])
+
+
+async def send_task_result(
+    user_id: int,
+    task_id: int,
+    *,
+    prompt: str = "",
+    result: str = "",
+    error: str = "",
+) -> None:
     if user_id <= 0:
         return
+    if _skip_notify(prompt):
+        logger.info("skip notify internal task #%s", task_id)
+        return
+    preview = _preview_prompt(prompt)
     if error:
-        text = f"❌ <b>Задача #{task_id}</b>\n\n{html.escape(error[:3500])}"
+        text = (
+            f"❌ <b>Не получилось (задача #{task_id})</b>\n\n"
+            f"<b>Вы просили:</b>\n{preview}\n\n"
+            f"<b>Ошибка:</b>\n{html.escape(error[:3000])}"
+        )
     else:
-        body = html.escape(result[:3800]) if result else "(пустой ответ)"
-        text = f"✅ <b>Задача #{task_id} готова</b>\n\n{body}"
+        body = html.escape(result[:3500]) if result else "Агент отработал, но не написал текст ответа."
+        text = (
+            f"✅ <b>Готово (задача #{task_id})</b>\n\n"
+            f"<b>Вы просили:</b>\n{preview}\n\n"
+            f"<b>Ответ Cursor:</b>\n{body}"
+        )
 
     from money_bot.cloud import _bot
 

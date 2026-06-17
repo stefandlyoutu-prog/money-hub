@@ -60,7 +60,7 @@ def main() -> None:
     print("3. Create test task")
     task = post(
         f"{BASE}/api/remote/tasks",
-        {"user_id": ADMIN, "prompt": "Reply with exactly one word: ping"},
+        {"user_id": ADMIN, "prompt": "__INTERNAL__: Reply with exactly one word: ping"},
         {"X-Dashboard-Password": PW},
     )
     tid = task["id"]

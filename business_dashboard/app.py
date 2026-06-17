@@ -469,7 +469,13 @@ async def api_remote_complete(
     row = complete_task(task_id, result=body.result, error=body.error)
     if not row:
         raise HTTPException(404, "Задача не найдена")
-    await send_task_result(int(row["user_id"]), task_id, result=body.result, error=body.error)
+    await send_task_result(
+        int(row["user_id"]),
+        task_id,
+        prompt=str(row.get("prompt") or ""),
+        result=body.result,
+        error=body.error,
+    )
     return {"ok": True, "task": row}
 
 

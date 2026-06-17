@@ -65,4 +65,4 @@ def run_agent_prompt(prompt: str) -> tuple[str, str]:
     if proc.returncode != 0:
         msg = err or out or f"agent exit {proc.returncode}"
         return out, msg
-    return out or "(готово, без текста ответа)", ""
+    return out or "Агент выполнил задачу, но не вернул текст.", ""

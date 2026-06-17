@@ -54,8 +54,10 @@ async def _submit(message: Message, prompt: str) -> None:
                 "Mac сейчас недоступен — выполню, когда проснётся."
             ).format(task["id"])
         await message.answer(
-            f"{hint}\n\n<b>Задача #{task['id']}</b>\n"
-            f"<i>{prompt[:500].replace('<', '')}</i>",
+            f"{hint}\n\n"
+            f"<b>Задача #{task['id']}</b>\n"
+            f"<b>Ваш запрос:</b>\n<i>{prompt[:500].replace('<', '')}</i>\n\n"
+            f"Когда выполнится — пришлю ответ сюда.",
             parse_mode="HTML",
         )
     except Exception as e:
