@@ -23,6 +23,8 @@ def wrap_user_prompt(user_text: str, *, project_dir: str, attachment_paths: list
         "• Запускать приложения: open -a «App» или osascript\n"
         "• Искать файлы: mdfind, find\n"
         "• 3D-модели, STL, проект m-bot\n"
+        "• Малярный козёл: ~/Projects/morozov-workspace/kozel-kit — "
+        "рендер ТОЛЬКО через `python3 render_views.py` (не рисуй matplotlib вручную)\n"
         "• Google Таблицы/Docs — если есть credentials или через браузер/open URL\n"
         "• Shell-команды на Mac\n\n"
         "ОТПРАВКА ФАЙЛОВ ПОЛЬЗОВАТЕЛЮ:\n"

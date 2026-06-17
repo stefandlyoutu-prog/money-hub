@@ -96,6 +96,7 @@ def _complete(
 ) -> None:
     if progress:
         progress.done()
+    worker_notified = False
     try:
         notify_task_result(
             user_id,
@@ -108,16 +109,22 @@ def _complete(
         worker_notified = True
     except Exception as e:
         print(f"[remote] notify failed #{tid}: {e}")
-        worker_notified = False
-    _api(
-        "POST",
-        f"/api/remote/worker/complete/{tid}",
-        {
-            "result": result,
-            "error": error,
-            "worker_notified": worker_notified,
-        },
-    )
+    try:
+        _api(
+            "POST",
+            f"/api/remote/worker/complete/{tid}",
+            {
+                "result": result,
+                "error": error,
+                "worker_notified": worker_notified,
+            },
+        )
+    except urllib.error.HTTPError as e:
+        body = e.read().decode()[:200]
+        if worker_notified and not error and e.code == 404:
+            print(f"[remote] complete #{tid} 404 ignored (user already notified): {body}")
+        else:
+            raise
 
 
 def process_once() -> bool:
@@ -207,7 +214,8 @@ def process_once() -> bool:
             tid, user_id=user_id, raw_prompt=raw_prompt,
             result="", error=str(e), progress=progress,
         )
-        raise
+        print(f"[remote] task #{tid} failed: {e}")
+        return True
 
 
 def main() -> None:

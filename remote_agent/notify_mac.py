@@ -120,6 +120,23 @@ def remove_status_message(chat_id: int, message_id: int | None) -> None:
         pass
 
 
+def send_photo(chat_id: int, path: str, *, caption: str = "") -> None:
+    p = Path(path).expanduser()
+    if not p.is_file():
+        return
+    if p.stat().st_size > _MAX_ATTACH_MB * 1024 * 1024:
+        return
+    mime = mimetypes.guess_type(p.name)[0] or "image/jpeg"
+    data = {"chat_id": str(chat_id)}
+    if caption:
+        data["caption"] = caption[:1024]
+    _tg_post(
+        "sendPhoto",
+        data,
+        files={"photo": (p.name, p.read_bytes(), mime)},
+    )
+
+
 def send_document(chat_id: int, path: str, *, caption: str = "") -> None:
     p = Path(path).expanduser()
     if not p.is_file():
@@ -191,6 +208,10 @@ def notify_task_result(
         )
     for fp in all_files[:10]:
         try:
-            send_document(user_id, fp, caption=Path(fp).name)
+            ext = Path(fp).suffix.lower()
+            if ext in {".png", ".jpg", ".jpeg", ".webp", ".gif"}:
+                send_photo(user_id, fp, caption=Path(fp).name)
+            else:
+                send_document(user_id, fp, caption=Path(fp).name)
         except Exception:
             pass

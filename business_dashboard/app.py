@@ -469,6 +469,8 @@ async def api_remote_complete(
 
     row = complete_task(task_id, result=body.result, error=body.error)
     if not row:
+        if body.worker_notified and not body.error:
+            return {"ok": True, "task": None, "note": "worker already notified"}
         raise HTTPException(404, "Задача не найдена")
     if not body.worker_notified:
         await send_task_result(
