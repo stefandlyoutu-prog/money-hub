@@ -23,7 +23,7 @@ def agent_available() -> tuple[bool, str]:
     return False, REMOTE_AGENT_BIN
 
 
-def run_agent_prompt(prompt: str) -> tuple[str, str]:
+def run_agent_prompt(prompt: str, *, attachment_paths: list[str] | None = None) -> tuple[str, str]:
     """Возвращает (stdout+result, error)."""
     ok, bin_path = agent_available()
     if not ok:
@@ -38,7 +38,7 @@ def run_agent_prompt(prompt: str) -> tuple[str, str]:
         return "", f"Папка проекта не найдена: {cwd}"
 
     env = os.environ.copy()
-    wrapped = wrap_user_prompt(prompt, project_dir=str(cwd))
+    wrapped = wrap_user_prompt(prompt, project_dir=str(cwd), attachment_paths=attachment_paths)
     cmd = [
         bin_path,
         "-p",

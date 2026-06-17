@@ -426,6 +426,7 @@ class WorkerHeartbeatBody(BaseModel):
 class WorkerCompleteBody(BaseModel):
     result: str = ""
     error: str = ""
+    worker_notified: bool = False
 
 
 @app.get("/api/remote/status")
@@ -469,13 +470,14 @@ async def api_remote_complete(
     row = complete_task(task_id, result=body.result, error=body.error)
     if not row:
         raise HTTPException(404, "Задача не найдена")
-    await send_task_result(
-        int(row["user_id"]),
-        task_id,
-        prompt=str(row.get("prompt") or ""),
-        result=body.result,
-        error=body.error,
-    )
+    if not body.worker_notified:
+        await send_task_result(
+            int(row["user_id"]),
+            task_id,
+            prompt=str(row.get("prompt") or ""),
+            result=body.result,
+            error=body.error,
+        )
     return {"ok": True, "task": row}
 
 

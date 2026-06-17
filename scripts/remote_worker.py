@@ -20,9 +20,14 @@ from dotenv import load_dotenv
 
 load_dotenv(ROOT / ".env")
 
+from remote_agent.attachments import ingest_prompt_attachments
 from remote_agent.config import REMOTE_AGENT_BIN
+from remote_agent.direct import is_direct_task, run_direct_task
 from remote_agent.executor import agent_available, run_agent_prompt
+from remote_agent.notify_mac import notify_task_result
 from remote_agent.voice import resolve_prompt
+
+ATTACH_DIR = ROOT / "data" / "remote_attachments"
 
 
 def _hub_url() -> str:
@@ -78,28 +83,80 @@ def heartbeat() -> None:
     )
 
 
+def _complete(
+    tid: int,
+    *,
+    user_id: int,
+    raw_prompt: str,
+    result: str,
+    error: str,
+    extra_files: list[str] | None = None,
+) -> None:
+    try:
+        notify_task_result(
+            user_id,
+            tid,
+            prompt=raw_prompt,
+            result=result,
+            error=error,
+            extra_files=extra_files,
+        )
+        worker_notified = True
+    except Exception as e:
+        print(f"[remote] notify failed #{tid}: {e}")
+        worker_notified = False
+    _api(
+        "POST",
+        f"/api/remote/worker/complete/{tid}",
+        {
+            "result": result,
+            "error": error,
+            "worker_notified": worker_notified,
+        },
+    )
+
+
 def process_once() -> bool:
     data = _api("POST", "/api/remote/worker/claim")
     task = data.get("task")
     if not task:
         return False
     tid = int(task["id"])
+    user_id = int(task.get("user_id") or 0)
     raw_prompt = task["prompt"]
     print(f"[remote] task #{tid}: {raw_prompt[:80]}…")
-    prompt, prep_err = resolve_prompt(raw_prompt)
+
+    if is_direct_task(raw_prompt):
+        result, error = run_direct_task(raw_prompt)
+        _complete(tid, user_id=user_id, raw_prompt=raw_prompt, result=result, error=error)
+        print(f"[remote] task #{tid} direct done error={bool(error)}")
+        return True
+
+    prompt, attach_paths, attach_err = ingest_prompt_attachments(
+        raw_prompt, download_dir=ATTACH_DIR / str(tid)
+    )
+    if attach_err and not prompt:
+        _complete(tid, user_id=user_id, raw_prompt=raw_prompt, result="", error=attach_err)
+        return True
+
+    prompt, prep_err = resolve_prompt(prompt)
     if prep_err:
-        _api("POST", f"/api/remote/worker/complete/{tid}", {"result": "", "error": prep_err})
+        _complete(tid, user_id=user_id, raw_prompt=raw_prompt, result="", error=prep_err)
         print(f"[remote] task #{tid} prep failed: {prep_err}")
         return True
     if raw_prompt != prompt:
         print(f"[remote] voice → {prompt[:120]}…")
-    result, error = run_agent_prompt(prompt)
+
+    result, error = run_agent_prompt(prompt, attachment_paths=attach_paths)
     if raw_prompt != prompt and not error:
         result = f"🎤 Расшифровано: {prompt[:500]}\n\n{result}"
-    _api(
-        "POST",
-        f"/api/remote/worker/complete/{tid}",
-        {"result": result, "error": error},
+    _complete(
+        tid,
+        user_id=user_id,
+        raw_prompt=raw_prompt,
+        result=result,
+        error=error,
+        extra_files=attach_paths,
     )
     print(f"[remote] task #{tid} done error={bool(error)}")
     return True
