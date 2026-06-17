@@ -10,7 +10,7 @@ from aiogram.types import Message
 
 from business_dashboard.config import MONEY_ADMIN_IDS
 from remote_agent.storage import create_task, list_recent_tasks, worker_status
-from remote_agent.voice import VOICE_PREFIX
+from remote_agent.voice import VOICE_PREFIX, format_prompt_preview
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -56,7 +56,7 @@ async def _submit(message: Message, prompt: str) -> None:
         await message.answer(
             f"{hint}\n\n"
             f"<b>Задача #{task['id']}</b>\n"
-            f"<b>Ваш запрос:</b>\n<i>{prompt[:500].replace('<', '')}</i>\n\n"
+            f"<b>Ваш запрос:</b>\n<i>{format_prompt_preview(prompt).replace('<', '')}</i>\n\n"
             f"Когда выполнится — пришлю резюме: как понял задачу, что сделал, итог.",
             parse_mode="HTML",
         )
@@ -104,7 +104,8 @@ async def cmd_agent(message: Message, command: CommandObject) -> None:
             return
         lines = ["<b>Последние задачи</b>\n"]
         for r in rows:
-            lines.append(f"#{r['id']} {r['status']} — {r['prompt_preview']}")
+            preview = format_prompt_preview(r.get("prompt_preview") or "")
+            lines.append(f"#{r['id']} {r['status']} — {preview[:80]}")
         await message.answer("\n".join(lines), parse_mode="HTML")
         return
     await _submit(message, command.args or "")

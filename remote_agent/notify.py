@@ -19,16 +19,9 @@ def _skip_notify(prompt: str) -> bool:
 
 
 def _preview_prompt(prompt: str, limit: int = 300) -> str:
-    from remote_agent.voice import VOICE_PREFIX
+    from remote_agent.voice import format_prompt_preview
 
-    lines = []
-    for line in (prompt or "").split("\n"):
-        if line.startswith(VOICE_PREFIX):
-            continue
-        if line.strip():
-            lines.append(line.strip())
-    text = "\n".join(lines).strip() or "(без текста)"
-    return html.escape(text[:limit])
+    return html.escape(format_prompt_preview(prompt, limit))
 
 
 async def send_task_result(
