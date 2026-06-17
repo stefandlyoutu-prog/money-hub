@@ -19,6 +19,24 @@ SEED_CHANNELS: List[Dict[str, Any]] = [
         "is_flagship": 1,
         "note": "Яндекс Дистрибуция · на модерации",
     },
+    {
+        "username": "signsvishe",
+        "title": "Знаки свыше",
+        "niche": "horoscope",
+        "funnel_url": "https://t.me/MOracul_bot",
+        "monetization": "oracle_stars",
+        "is_flagship": 0,
+        "note": "Промо @MOracul_bot",
+    },
+    {
+        "username": "auragirlss",
+        "title": "Aura Girls",
+        "niche": "aura",
+        "funnel_url": "https://t.me/MOracul_bot",
+        "monetization": "oracle_stars",
+        "is_flagship": 0,
+        "note": "Промо @MOracul_bot",
+    },
 ]
 
 
