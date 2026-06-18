@@ -25,7 +25,7 @@ def main() -> None:
         print(f"  FAIL {p}")
     for i in report.issues:
         print(f"  ! {i}")
-    sys.exit(0 if report.passed and not report.blocked_files else 1)
+    sys.exit(0 if report.passed and not report.blocked_files and not report.issues else 1)
 
 
 if __name__ == "__main__":

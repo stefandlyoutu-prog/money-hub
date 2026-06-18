@@ -189,8 +189,8 @@ def validate_delivery(
                 continue
         report.ok_files.append(p)
 
-    if is_3d and strict and report.blocked_files and not report.ok_files:
+    if is_3d and strict and (report.blocked_files or report.issues):
         report.passed = False
     elif is_3d and strict and report.issues:
-        report.passed = len(report.ok_files) > 0
+        report.passed = False
     return report
