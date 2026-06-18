@@ -429,6 +429,11 @@ class WorkerCompleteBody(BaseModel):
     worker_notified: bool = False
 
 
+class WorkerTgFileBody(BaseModel):
+    file_id: str
+    bot_slot: str = "1"
+
+
 @app.get("/api/remote/status")
 def api_remote_status():
     from remote_agent.storage import worker_status
@@ -455,6 +460,31 @@ def api_remote_claim(x_remote_worker_secret: str = Header(default="")):
 
     task = claim_next_task()
     return {"task": task}
+
+
+@app.post("/api/remote/worker/tg-file")
+def api_remote_worker_tg_file(
+    body: WorkerTgFileBody,
+    x_remote_worker_secret: str = Header(default=""),
+):
+    """Скачать файл Telegram токеном бота на Render (для Mac-воркера)."""
+    import base64
+
+    _check_worker_secret(x_remote_worker_secret)
+    from remote_agent.voice import download_tg_file_direct
+
+    file_id = (body.file_id or "").strip()
+    if not file_id:
+        raise HTTPException(400, "file_id пустой")
+    slot = body.bot_slot if body.bot_slot in ("1", "2") else "1"
+    data, filename, err = download_tg_file_direct(file_id, bot_slot=slot)
+    if err:
+        raise HTTPException(400, err)
+    return {
+        "ok": True,
+        "filename": filename,
+        "data_b64": base64.b64encode(data).decode("ascii"),
+    }
 
 
 @app.post("/api/remote/worker/complete/{task_id}")

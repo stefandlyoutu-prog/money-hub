@@ -163,7 +163,10 @@ def process_once() -> bool:
             progress.update("📥 Скачиваю файлы с Telegram…", detail="На Mac")
 
         prompt, attach_paths, attach_err = ingest_prompt_attachments(
-            raw_prompt, download_dir=ATTACH_DIR / str(tid), bot_token=bot_token
+            raw_prompt,
+            download_dir=ATTACH_DIR / str(tid),
+            bot_token=bot_token,
+            bot_slot=bot_slot,
         )
         if attach_err and not prompt:
             _complete(
@@ -179,7 +182,9 @@ def process_once() -> bool:
                 detail="Whisper 1–3 мин для длинных сообщений",
             )
 
-        prompt, prep_err = resolve_prompt(prompt, bot_token=bot_token)
+        prompt, prep_err = resolve_prompt(
+            prompt, bot_token=bot_token, bot_slot=bot_slot
+        )
         if prep_err:
             _complete(
                 tid, user_id=user_id, raw_prompt=raw_prompt,

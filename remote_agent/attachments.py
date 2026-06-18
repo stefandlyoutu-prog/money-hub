@@ -29,7 +29,7 @@ def strip_file_markers(text: str) -> tuple[str, list[str]]:
 
 
 def ingest_prompt_attachments(
-    raw: str, *, download_dir: Path, bot_token: str | None = None
+    raw: str, *, download_dir: Path, bot_token: str | None = None, bot_slot: str = "1"
 ) -> tuple[str, list[str], str]:
     """
     __FILE__/ __PHOTO__/ __DOC__ file_id → локальные файлы.
@@ -57,7 +57,9 @@ def ingest_prompt_attachments(
                     file_id, name = rest.split("|", 1)
                     file_id = file_id.strip()
                     name = name.strip() or default_name
-                data, fname, err = download_tg_file(file_id, bot_token=bot_token)
+                data, fname, err = download_tg_file(
+                    file_id, bot_token=bot_token, bot_slot=bot_slot
+                )
                 if err:
                     errors.append(err)
                     break

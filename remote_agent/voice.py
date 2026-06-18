@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import shutil
 import subprocess
 import tempfile
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -217,37 +219,162 @@ def transcribe_bytes(audio_bytes: bytes, *, filename: str = "voice.ogg") -> tupl
     return text, ""
 
 
-def download_tg_file(file_id: str, *, bot_token: str | None = None) -> tuple[bytes, str, str]:
-    from money_bot.bot_tokens import token_for_slot
+def _hub_url() -> str:
+    return (
+        os.getenv("MONEY_HUB_PUBLIC_URL", "").strip()
+        or os.getenv("RENDER_EXTERNAL_URL", "").strip()
+        or "https://money-hub-3p4r.onrender.com"
+    ).rstrip("/")
 
-    token = (bot_token or os.getenv("MONEY_BOT_TOKEN", "")).strip()
-    if not token:
-        token = token_for_slot("1")
-    if not token:
-        return b"", "", "MONEY_BOT_TOKEN не задан"
+
+def _worker_secret() -> str:
+    return os.getenv("REMOTE_WORKER_SECRET", "").strip()
+
+
+def _tg_post(token: str, method: str, payload: dict) -> tuple[dict | None, str]:
+    url = f"https://api.telegram.org/bot{token}/{method}"
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode(),
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": _BROWSER_UA,
+            "Accept": "application/json",
+        },
+        method="POST",
+    )
     try:
-        meta_req = urllib.request.Request(
-            f"https://api.telegram.org/bot{token}/getFile?file_id={file_id}",
-            headers={"User-Agent": _BROWSER_UA},
-        )
-        meta = json.load(urllib.request.urlopen(meta_req, timeout=30))
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return json.load(r), ""
+    except urllib.error.HTTPError as e:
+        raw = e.read().decode(errors="replace")[:500]
+        try:
+            data = json.loads(raw)
+            return data, data.get("description", raw) or f"HTTP {e.code}"
+        except json.JSONDecodeError:
+            return None, f"HTTP {e.code}: {raw}"
     except Exception as e:
-        return b"", "", f"getFile: {e}"
-    if not meta.get("ok"):
-        return b"", "", meta.get("description", "getFile failed")
+        return None, str(e)
+
+
+def _download_with_token(file_id: str, token: str) -> tuple[bytes, str, str]:
+    meta, err = _tg_post(token, "getFile", {"file_id": file_id})
+    if err and (not meta or not meta.get("ok")):
+        return b"", "", err or (meta or {}).get("description", "getFile failed")
+    if not meta or not meta.get("ok"):
+        return b"", "", (meta or {}).get("description", "getFile failed")
     path = meta["result"]["file_path"]
     ext = path.rsplit(".", 1)[-1].lower() if "." in path else "oga"
     filename = f"voice.{ext}"
-    url = f"https://api.telegram.org/file/bot{token}/{path}"
+    file_url = f"https://api.telegram.org/file/bot{token}/{path}"
     try:
-        file_req = urllib.request.Request(url, headers={"User-Agent": _BROWSER_UA})
+        file_req = urllib.request.Request(file_url, headers={"User-Agent": _BROWSER_UA})
         with urllib.request.urlopen(file_req, timeout=120) as r:
             return r.read(), filename, ""
     except Exception as e:
         return b"", "", f"download: {e}"
 
 
-def resolve_prompt(raw: str, *, bot_token: str | None = None) -> tuple[str, str]:
+def _tokens_for_slot(bot_token: str | None, bot_slot: str) -> list[str]:
+    from money_bot.bot_tokens import bot_slots, token_for_slot
+
+    out: list[str] = []
+    for candidate in (
+        (bot_token or "").strip(),
+        token_for_slot(bot_slot),
+        *(t for t in bot_slots().values()),
+    ):
+        if candidate and candidate not in out:
+            out.append(candidate)
+    return out
+
+
+def download_tg_file_direct(
+    file_id: str, *, bot_token: str | None = None, bot_slot: str = "1"
+) -> tuple[bytes, str, str]:
+    """Скачивание напрямую через Telegram API (токены этого хоста)."""
+    file_id = (file_id or "").strip()
+    if not file_id:
+        return b"", "", "empty file_id"
+    tokens = _tokens_for_slot(bot_token, bot_slot)
+    if not tokens:
+        return b"", "", "MONEY_BOT_TOKEN не задан"
+    last_err = "MONEY_BOT_TOKEN не задан"
+    for token in tokens:
+        data, filename, err = _download_with_token(file_id, token)
+        if not err:
+            return data, filename, ""
+        last_err = err
+    return b"", "", last_err
+
+
+def _download_via_hub(file_id: str, bot_slot: str) -> tuple[bytes, str, str]:
+    """Mac-воркер качает через Render, где живёт @MS_Moneybot."""
+    secret = _worker_secret()
+    hub = _hub_url()
+    if not secret or not hub:
+        return b"", "", "hub not configured"
+    url = f"{hub}/api/remote/worker/tg-file"
+    payload = json.dumps({"file_id": file_id, "bot_slot": bot_slot}).encode()
+    req = urllib.request.Request(
+        url,
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "X-Remote-Worker-Secret": secret,
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=120) as r:
+            data = json.load(r)
+    except urllib.error.HTTPError as e:
+        raw = e.read().decode(errors="replace")[:300]
+        try:
+            err_body = json.loads(raw)
+            detail = err_body.get("detail", raw)
+        except json.JSONDecodeError:
+            detail = raw
+        return b"", "", f"hub tg-file: {detail}"
+    except Exception as e:
+        return b"", "", f"hub tg-file: {e}"
+    if not data.get("ok"):
+        return b"", "", data.get("error", "hub tg-file failed")
+    try:
+        blob = base64.b64decode(data["data_b64"])
+    except Exception as e:
+        return b"", "", f"hub tg-file decode: {e}"
+    return blob, str(data.get("filename") or "attachment.bin"), ""
+
+
+def download_tg_file(
+    file_id: str, *, bot_token: str | None = None, bot_slot: str = "1"
+) -> tuple[bytes, str, str]:
+    """Скачивание файла Telegram: сначала hub (Render), затем локальные токены."""
+    file_id = (file_id or "").strip()
+    if not file_id:
+        return b"", "", "empty file_id"
+
+    hub_err = ""
+    if _worker_secret() and _hub_url():
+        data, filename, hub_err = _download_via_hub(file_id, bot_slot)
+        if not hub_err:
+            return data, filename, ""
+
+    data, filename, local_err = download_tg_file_direct(
+        file_id, bot_token=bot_token, bot_slot=bot_slot
+    )
+    if not local_err:
+        return data, filename, ""
+
+    if hub_err:
+        return b"", "", hub_err
+    return b"", "", local_err
+
+
+def resolve_prompt(
+    raw: str, *, bot_token: str | None = None, bot_slot: str = "1"
+) -> tuple[str, str]:
     if VOICE_PREFIX not in raw:
         return raw, ""
     cap_parts: list[str] = []
@@ -259,7 +386,9 @@ def resolve_prompt(raw: str, *, bot_token: str | None = None) -> tuple[str, str]
             cap_parts.append(line.strip())
     if not file_id:
         return raw, "Нет file_id голосового"
-    audio, filename, err = download_tg_file(file_id, bot_token=bot_token)
+    audio, filename, err = download_tg_file(
+        file_id, bot_token=bot_token, bot_slot=bot_slot
+    )
     if err:
         return "", f"Не скачал голос: {err}"
     text, err = transcribe_bytes(audio, filename=filename)
