@@ -22,7 +22,7 @@ router = Router()
 _agent_off: set[int] = set()
 
 _CAPABILITIES = (
-    "🖥 <b>Полное управление Mac через @MS_Moneybot</b>\n\n"
+    "🖥 <b>Управление Mac через Telegram-бота</b>\n\n"
     "<b>Текст / голос</b> — задача Cursor Agent (код, деплой, 3D, таблицы…)\n"
     "<b>📎 Файл / фото</b> — отправь с подписью = задача + файл на Mac\n\n"
     "<b>Быстрые команды Mac</b> (без агента):\n"

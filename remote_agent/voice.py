@@ -276,13 +276,12 @@ def _download_with_token(file_id: str, token: str) -> tuple[bytes, str, str]:
 
 
 def _tokens_for_slot(bot_token: str | None, bot_slot: str) -> list[str]:
-    from money_bot.bot_tokens import bot_slots, token_for_slot
+    from money_bot.bot_tokens import all_tokens_for_slot
 
     out: list[str] = []
     for candidate in (
         (bot_token or "").strip(),
-        token_for_slot(bot_slot),
-        *(t for t in bot_slots().values()),
+        *all_tokens_for_slot(bot_slot),
     ):
         if candidate and candidate not in out:
             out.append(candidate)
@@ -390,7 +389,10 @@ def resolve_prompt(
         file_id, bot_token=bot_token, bot_slot=bot_slot
     )
     if err:
-        return "", f"Не скачал голос: {err}"
+        return "", (
+            f"Не скачал голос ({err}). "
+            "Проверь, что пишешь в того же бота, что на Render, или обнови токены."
+        )
     text, err = transcribe_bytes(audio, filename=filename)
     if err:
         return "", err

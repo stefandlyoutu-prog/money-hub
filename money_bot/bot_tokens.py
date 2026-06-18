@@ -12,7 +12,7 @@ def _token_2() -> str:
 
 
 def bot_slots() -> dict[str, str]:
-    """slot → token."""
+    """slot → token (Mac .env)."""
     out: dict[str, str] = {}
     if MONEY_BOT_TOKEN:
         out["1"] = MONEY_BOT_TOKEN
@@ -20,6 +20,39 @@ def bot_slots() -> dict[str, str]:
     if t2:
         out["2"] = t2
     return out
+
+
+def render_bot_slots() -> dict[str, str]:
+    """Токены бота на Render (если отличаются от Mac)."""
+    out: dict[str, str] = {}
+    r1 = os.getenv("MONEY_BOT_TOKEN_RENDER", "").strip()
+    r2 = os.getenv("MONEY_BOT_TOKEN_2_RENDER", "").strip()
+    if r1:
+        out["1"] = r1
+    elif MONEY_BOT_TOKEN:
+        out["1"] = MONEY_BOT_TOKEN
+    if r2:
+        out["2"] = r2
+    elif _token_2():
+        out["2"] = _token_2()
+    return out
+
+
+def all_tokens_for_slot(slot: str | None = None) -> list[str]:
+    """Все токены для скачивания file_id / отправки (Render первым)."""
+    slot = slot or "1"
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for src in (render_bot_slots(), bot_slots()):
+        t = src.get(slot) or src.get("1") or ""
+        if t and t not in seen:
+            seen.add(t)
+            ordered.append(t)
+    for t in bot_slots().values():
+        if t not in seen:
+            seen.add(t)
+            ordered.append(t)
+    return ordered
 
 
 def slot_for_token(token: str | None) -> str:
@@ -32,10 +65,8 @@ def slot_for_token(token: str | None) -> str:
 
 
 def token_for_slot(slot: str | None) -> str:
-    slots = bot_slots()
-    if slot and slot in slots:
-        return slots[slot]
-    return MONEY_BOT_TOKEN or next(iter(slots.values()), "")
+    tokens = all_tokens_for_slot(slot)
+    return tokens[0] if tokens else MONEY_BOT_TOKEN
 
 
 def usernames() -> dict[str, str]:

@@ -434,6 +434,22 @@ class WorkerTgFileBody(BaseModel):
     bot_slot: str = "1"
 
 
+class WorkerPushNotifyFile(BaseModel):
+    filename: str
+    kind: str = "document"
+    data_b64: str
+
+
+class WorkerPushNotifyBody(BaseModel):
+    user_id: int
+    task_id: int
+    prompt: str = ""
+    result: str = ""
+    error: str = ""
+    bot_slot: str = "1"
+    files: list[WorkerPushNotifyFile] = []
+
+
 @app.get("/api/remote/status")
 def api_remote_status():
     from remote_agent.storage import worker_status
@@ -485,6 +501,61 @@ def api_remote_worker_tg_file(
         "filename": filename,
         "data_b64": base64.b64encode(data).decode("ascii"),
     }
+
+
+@app.post("/api/remote/worker/push-notify")
+def api_remote_worker_push_notify(
+    body: WorkerPushNotifyBody,
+    x_remote_worker_secret: str = Header(default=""),
+):
+    """Mac шлёт результат — Telegram API вызывается токеном бота на Render."""
+    import base64
+    import html
+
+    _check_worker_secret(x_remote_worker_secret)
+    from remote_agent.attachments import strip_file_markers
+    from remote_agent.notify import _INTERNAL_PREFIXES, _split_message
+    from remote_agent.render_tg import send_file_bytes, send_text
+    from remote_agent.voice import format_prompt_preview
+
+    prompt = body.prompt or ""
+    if body.user_id <= 0 or any(prompt.strip().startswith(x) for x in _INTERNAL_PREFIXES):
+        return {"ok": True, "skipped": True}
+
+    slot = body.bot_slot if body.bot_slot in ("1", "2") else "1"
+    preview = html.escape(format_prompt_preview(prompt, 300))
+    cleaned, _ = strip_file_markers(body.result or "")
+
+    if body.error:
+        text = (
+            f"❌ <b>Не получилось (задача #{body.task_id})</b>\n\n"
+            f"<b>📩 Ваш запрос:</b>\n{preview}\n\n"
+            f"<b>Ошибка:</b>\n{html.escape(body.error[:3000])}"
+        )
+    else:
+        result_body = html.escape(cleaned[:3500]) if cleaned else "Агент выполнил задачу."
+        text = (
+            f"✅ <b>Готово (задача #{body.task_id})</b>\n\n"
+            f"<b>📩 Ваш запрос:</b>\n{preview}\n\n"
+            f"<b>📋 Резюме агента:</b>\n{result_body}"
+        )
+
+    try:
+        for chunk in _split_message(text):
+            send_text(body.user_id, chunk, bot_slot=slot)
+        for f in body.files[:10]:
+            raw = base64.b64decode(f.data_b64)
+            kind = f.kind if f.kind in ("photo", "document") else "document"
+            send_file_bytes(
+                body.user_id,
+                f.filename or "file.bin",
+                raw,
+                kind=kind,
+                bot_slot=slot,
+            )
+    except Exception as e:
+        raise HTTPException(502, str(e)[:300]) from e
+    return {"ok": True}
 
 
 @app.post("/api/remote/worker/complete/{task_id}")

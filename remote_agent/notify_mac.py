@@ -34,46 +34,54 @@ def _skip_notify(prompt: str) -> bool:
 def _tg_post(
     method: str, data: dict, *, files: dict | None = None, bot_slot: str = "1"
 ) -> dict:
-    token = _token(bot_slot)
-    if not token:
-        return {}
-    url = f"https://api.telegram.org/bot{token}/{method}"
-    if files:
-        import uuid
+    from money_bot.bot_tokens import all_tokens_for_slot
 
-        boundary = uuid.uuid4().hex
-        body = b""
-        for k, v in data.items():
-            body += f"--{boundary}\r\n".encode()
-            body += f'Content-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n'.encode()
-        for field, (fname, content, mime) in files.items():
-            body += f"--{boundary}\r\n".encode()
-            body += (
-                f'Content-Disposition: form-data; name="{field}"; filename="{fname}"\r\n'
-                f"Content-Type: {mime}\r\n\r\n"
-            ).encode()
-            body += content
-            body += b"\r\n"
-        body += f"--{boundary}--\r\n".encode()
-        req = urllib.request.Request(
-            url,
-            data=body,
-            headers={
-                "Content-Type": f"multipart/form-data; boundary={boundary}",
-                "User-Agent": _BROWSER_UA,
-            },
-            method="POST",
-        )
-    else:
-        payload = json.dumps(data).encode()
-        req = urllib.request.Request(
-            url,
-            data=payload,
-            headers={"Content-Type": "application/json", "User-Agent": _BROWSER_UA},
-            method="POST",
-        )
-    with urllib.request.urlopen(req, timeout=120) as r:
-        return json.load(r)
+    last_err: Exception | None = None
+    for token in all_tokens_for_slot(bot_slot):
+        url = f"https://api.telegram.org/bot{token}/{method}"
+        try:
+            if files:
+                import uuid
+
+                boundary = uuid.uuid4().hex
+                body = b""
+                for k, v in data.items():
+                    body += f"--{boundary}\r\n".encode()
+                    body += f'Content-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n'.encode()
+                for field, (fname, content, mime) in files.items():
+                    body += f"--{boundary}\r\n".encode()
+                    body += (
+                        f'Content-Disposition: form-data; name="{field}"; filename="{fname}"\r\n'
+                        f"Content-Type: {mime}\r\n\r\n"
+                    ).encode()
+                    body += content
+                    body += b"\r\n"
+                body += f"--{boundary}--\r\n".encode()
+                req = urllib.request.Request(
+                    url,
+                    data=body,
+                    headers={
+                        "Content-Type": f"multipart/form-data; boundary={boundary}",
+                        "User-Agent": _BROWSER_UA,
+                    },
+                    method="POST",
+                )
+            else:
+                payload = json.dumps(data).encode()
+                req = urllib.request.Request(
+                    url,
+                    data=payload,
+                    headers={"Content-Type": "application/json", "User-Agent": _BROWSER_UA},
+                    method="POST",
+                )
+            with urllib.request.urlopen(req, timeout=120) as r:
+                return json.load(r)
+        except Exception as e:
+            last_err = e
+            continue
+    if last_err:
+        raise last_err
+    return {}
 
 
 def send_chat_action(chat_id: int, action: str = "typing", *, bot_slot: str = "1") -> None:
@@ -204,6 +212,22 @@ def notify_task_result(
             qa_note = "\n\n" + qa.summary_ru()
         if not qa.passed and not all_files:
             error = error or "QA 3D не пройден — файлы не отправлены.\n" + "\n".join(qa.issues[:8])
+
+    from remote_agent.hub_notify import collect_files, hub_available, push_notify
+
+    if hub_available():
+        ok, hub_err = push_notify(
+            user_id,
+            task_id,
+            prompt=prompt,
+            result=cleaned if not error else "",
+            error=error,
+            files=collect_files(all_files) if not error else None,
+            bot_slot=bot_slot,
+        )
+        if ok:
+            return
+        print(f"[remote] hub notify failed #{task_id}: {hub_err}")
 
     if error:
         text = (

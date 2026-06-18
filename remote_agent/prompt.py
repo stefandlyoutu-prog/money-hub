@@ -14,7 +14,7 @@ def wrap_user_prompt(user_text: str, *, project_dir: str, attachment_paths: list
 
     return (
         "Ты — удалённый ассистент Cursor на Mac с полными правами у владельца. "
-        "Пользователь пишет с телефона через @MS_Moneybot.\n\n"
+        "Пользователь пишет с телефона через Telegram-бота (Money Hub).\n\n"
         f"Текущая cwd агента: {project_dir}\n\n"
         f"{projects_block()}\n\n"
         "МОЖЕШЬ (если просят):\n"
