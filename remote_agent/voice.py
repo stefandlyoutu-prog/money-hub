@@ -217,8 +217,12 @@ def transcribe_bytes(audio_bytes: bytes, *, filename: str = "voice.ogg") -> tupl
     return text, ""
 
 
-def download_tg_file(file_id: str) -> tuple[bytes, str, str]:
-    token = os.getenv("MONEY_BOT_TOKEN", "").strip()
+def download_tg_file(file_id: str, *, bot_token: str | None = None) -> tuple[bytes, str, str]:
+    from money_bot.bot_tokens import token_for_slot
+
+    token = (bot_token or os.getenv("MONEY_BOT_TOKEN", "")).strip()
+    if not token:
+        token = token_for_slot("1")
     if not token:
         return b"", "", "MONEY_BOT_TOKEN не задан"
     try:
@@ -243,7 +247,7 @@ def download_tg_file(file_id: str) -> tuple[bytes, str, str]:
         return b"", "", f"download: {e}"
 
 
-def resolve_prompt(raw: str) -> tuple[str, str]:
+def resolve_prompt(raw: str, *, bot_token: str | None = None) -> tuple[str, str]:
     if VOICE_PREFIX not in raw:
         return raw, ""
     cap_parts: list[str] = []
@@ -255,7 +259,7 @@ def resolve_prompt(raw: str) -> tuple[str, str]:
             cap_parts.append(line.strip())
     if not file_id:
         return raw, "Нет file_id голосового"
-    audio, filename, err = download_tg_file(file_id)
+    audio, filename, err = download_tg_file(file_id, bot_token=bot_token)
     if err:
         return "", f"Не скачал голос: {err}"
     text, err = transcribe_bytes(audio, filename=filename)

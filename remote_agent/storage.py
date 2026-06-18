@@ -29,6 +29,11 @@ def init_remote(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(remote_tasks)")}
+    if "bot_slot" not in cols:
+        conn.execute(
+            "ALTER TABLE remote_tasks ADD COLUMN bot_slot TEXT NOT NULL DEFAULT '1'"
+        )
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS remote_worker (
@@ -49,16 +54,17 @@ def ensure_remote() -> None:
         init_remote(conn)
 
 
-def create_task(user_id: int, prompt: str) -> Dict[str, Any]:
+def create_task(user_id: int, prompt: str, *, bot_slot: str = "1") -> Dict[str, Any]:
     ensure_remote()
     now = _now()
+    slot = bot_slot if bot_slot in ("1", "2") else "1"
     with _connect() as conn:
         cur = conn.execute(
             """
-            INSERT INTO remote_tasks (user_id, prompt, status, created_at)
-            VALUES (?, ?, 'queued', ?)
+            INSERT INTO remote_tasks (user_id, prompt, status, created_at, bot_slot)
+            VALUES (?, ?, 'queued', ?, ?)
             """,
-            (user_id, prompt[:8000], now),
+            (user_id, prompt[:8000], now, slot),
         )
         tid = int(cur.lastrowid)
         row = conn.execute("SELECT * FROM remote_tasks WHERE id = ?", (tid,)).fetchone()

@@ -16,6 +16,10 @@ services:
         sync: false
       - key: MONEY_BOT_USERNAME
         sync: false
+      - key: MONEY_BOT_TOKEN_2
+        sync: false
+      - key: MONEY_BOT_USERNAME_2
+        sync: false
       - key: MONEY_ADMIN_IDS
         sync: false
       - key: MONEY_DASHBOARD_PASSWORD

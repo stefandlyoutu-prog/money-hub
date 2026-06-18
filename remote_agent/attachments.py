@@ -28,7 +28,9 @@ def strip_file_markers(text: str) -> tuple[str, list[str]]:
     return cleaned, paths
 
 
-def ingest_prompt_attachments(raw: str, *, download_dir: Path) -> tuple[str, list[str], str]:
+def ingest_prompt_attachments(
+    raw: str, *, download_dir: Path, bot_token: str | None = None
+) -> tuple[str, list[str], str]:
     """
     __FILE__/ __PHOTO__/ __DOC__ file_id → локальные файлы.
     Возвращает (prompt_for_agent, local_paths, error).
@@ -55,7 +57,7 @@ def ingest_prompt_attachments(raw: str, *, download_dir: Path) -> tuple[str, lis
                     file_id, name = rest.split("|", 1)
                     file_id = file_id.strip()
                     name = name.strip() or default_name
-                data, fname, err = download_tg_file(file_id)
+                data, fname, err = download_tg_file(file_id, bot_token=bot_token)
                 if err:
                     errors.append(err)
                     break

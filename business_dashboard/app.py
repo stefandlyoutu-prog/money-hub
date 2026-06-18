@@ -479,6 +479,7 @@ async def api_remote_complete(
             prompt=str(row.get("prompt") or ""),
             result=body.result,
             error=body.error,
+            bot_slot=str(row.get("bot_slot") or "1"),
         )
     return {"ok": True, "task": row}
 

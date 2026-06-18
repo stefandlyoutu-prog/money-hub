@@ -20,8 +20,10 @@ _BROWSER_UA = (
 _MAX_ATTACH_MB = int(os.getenv("REMOTE_MAX_ATTACH_MB", "45"))
 
 
-def _token() -> str:
-    return os.getenv("MONEY_BOT_TOKEN", "").strip()
+def _token(bot_slot: str | None = None) -> str:
+    from money_bot.bot_tokens import token_for_slot
+
+    return token_for_slot(bot_slot or "1")
 
 
 def _skip_notify(prompt: str) -> bool:
@@ -29,8 +31,10 @@ def _skip_notify(prompt: str) -> bool:
     return any(p.startswith(x) for x in _INTERNAL_PREFIXES)
 
 
-def _tg_post(method: str, data: dict, *, files: dict | None = None) -> dict:
-    token = _token()
+def _tg_post(
+    method: str, data: dict, *, files: dict | None = None, bot_slot: str = "1"
+) -> dict:
+    token = _token(bot_slot)
     if not token:
         return {}
     url = f"https://api.telegram.org/bot{token}/{method}"
@@ -72,29 +76,32 @@ def _tg_post(method: str, data: dict, *, files: dict | None = None) -> dict:
         return json.load(r)
 
 
-def send_chat_action(chat_id: int, action: str = "typing") -> None:
+def send_chat_action(chat_id: int, action: str = "typing", *, bot_slot: str = "1") -> None:
     if chat_id <= 0:
         return
     try:
-        _tg_post("sendChatAction", {"chat_id": chat_id, "action": action})
+        _tg_post("sendChatAction", {"chat_id": chat_id, "action": action}, bot_slot=bot_slot)
     except Exception:
         pass
 
 
-def send_status_message(chat_id: int, text: str) -> int | None:
+def send_status_message(chat_id: int, text: str, *, bot_slot: str = "1") -> int | None:
     if chat_id <= 0:
         return None
     try:
         data = _tg_post(
             "sendMessage",
             {"chat_id": chat_id, "text": text, "parse_mode": "HTML"},
+            bot_slot=bot_slot,
         )
         return int(data.get("result", {}).get("message_id", 0)) or None
     except Exception:
         return None
 
 
-def edit_status_message(chat_id: int, message_id: int | None, text: str) -> None:
+def edit_status_message(
+    chat_id: int, message_id: int | None, text: str, *, bot_slot: str = "1"
+) -> None:
     if chat_id <= 0 or not message_id:
         return
     try:
@@ -106,21 +113,22 @@ def edit_status_message(chat_id: int, message_id: int | None, text: str) -> None
                 "text": text,
                 "parse_mode": "HTML",
             },
+            bot_slot=bot_slot,
         )
     except Exception:
         pass
 
 
-def remove_status_message(chat_id: int, message_id: int | None) -> None:
+def remove_status_message(chat_id: int, message_id: int | None, *, bot_slot: str = "1") -> None:
     if chat_id <= 0 or not message_id:
         return
     try:
-        _tg_post("deleteMessage", {"chat_id": chat_id, "message_id": message_id})
+        _tg_post("deleteMessage", {"chat_id": chat_id, "message_id": message_id}, bot_slot=bot_slot)
     except Exception:
         pass
 
 
-def send_photo(chat_id: int, path: str, *, caption: str = "") -> None:
+def send_photo(chat_id: int, path: str, *, caption: str = "", bot_slot: str = "1") -> None:
     p = Path(path).expanduser()
     if not p.is_file():
         return
@@ -134,10 +142,11 @@ def send_photo(chat_id: int, path: str, *, caption: str = "") -> None:
         "sendPhoto",
         data,
         files={"photo": (p.name, p.read_bytes(), mime)},
+        bot_slot=bot_slot,
     )
 
 
-def send_document(chat_id: int, path: str, *, caption: str = "") -> None:
+def send_document(chat_id: int, path: str, *, caption: str = "", bot_slot: str = "1") -> None:
     p = Path(path).expanduser()
     if not p.is_file():
         return
@@ -148,6 +157,7 @@ def send_document(chat_id: int, path: str, *, caption: str = "") -> None:
                 "chat_id": chat_id,
                 "text": f"Файл слишком большой для Telegram ({p.name})",
             },
+            bot_slot=bot_slot,
         )
         return
     mime = mimetypes.guess_type(p.name)[0] or "application/octet-stream"
@@ -158,6 +168,7 @@ def send_document(chat_id: int, path: str, *, caption: str = "") -> None:
         "sendDocument",
         data,
         files={"document": (p.name, p.read_bytes(), mime)},
+        bot_slot=bot_slot,
     )
 
 
@@ -169,6 +180,7 @@ def notify_task_result(
     result: str = "",
     error: str = "",
     extra_files: list[str] | None = None,
+    bot_slot: str = "1",
 ) -> None:
     if user_id <= 0 or _skip_notify(prompt):
         return
@@ -203,6 +215,7 @@ def notify_task_result(
             _tg_post(
                 "sendMessage",
                 {"chat_id": user_id, "text": chunk, "parse_mode": "HTML"},
+                bot_slot=bot_slot,
             )
         return
 
@@ -216,13 +229,14 @@ def notify_task_result(
         _tg_post(
             "sendMessage",
             {"chat_id": user_id, "text": chunk, "parse_mode": "HTML"},
+            bot_slot=bot_slot,
         )
     for fp in all_files[:10]:
         try:
             ext = Path(fp).suffix.lower()
             if ext in {".png", ".jpg", ".jpeg", ".webp", ".gif"}:
-                send_photo(user_id, fp, caption=Path(fp).name)
+                send_photo(user_id, fp, caption=Path(fp).name, bot_slot=bot_slot)
             else:
-                send_document(user_id, fp, caption=Path(fp).name)
+                send_document(user_id, fp, caption=Path(fp).name, bot_slot=bot_slot)
         except Exception:
             pass

@@ -14,6 +14,7 @@ from remote_agent.attachments import DOC_PREFIX, PHOTO_PREFIX
 from remote_agent.direct import wrap_direct_command
 from remote_agent.storage import create_task, list_recent_tasks, worker_status
 from remote_agent.voice import VOICE_PREFIX, format_prompt_preview
+from money_bot.bot_tokens import slot_for_token
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -68,7 +69,12 @@ async def _submit(message: Message, prompt: str) -> None:
         return
     try:
         await message.bot.send_chat_action(message.chat.id, ChatAction.TYPING)
-        task = create_task(message.from_user.id if message.from_user else 0, prompt.strip())
+        bot_slot = slot_for_token(getattr(message.bot, "token", None))
+        task = create_task(
+            message.from_user.id if message.from_user else 0,
+            prompt.strip(),
+            bot_slot=bot_slot,
+        )
         st = worker_status()
         if st["online"]:
             hint = "⏳ Mac онлайн — скоро придёт <b>живой статус</b> задачи"

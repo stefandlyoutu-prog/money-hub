@@ -24,6 +24,7 @@ from remote_agent.attachments import ingest_prompt_attachments
 from remote_agent.config import REMOTE_AGENT_BIN
 from remote_agent.direct import is_direct_task, run_direct_task
 from remote_agent.executor import agent_available, run_agent_prompt
+from money_bot.bot_tokens import token_for_slot
 from remote_agent.notify_mac import notify_task_result
 from remote_agent.progress import TaskProgress, run_with_progress
 from remote_agent.voice import VOICE_PREFIX, resolve_prompt
@@ -93,6 +94,7 @@ def _complete(
     error: str,
     extra_files: list[str] | None = None,
     progress: TaskProgress | None = None,
+    bot_slot: str = "1",
 ) -> None:
     if progress:
         progress.done()
@@ -105,6 +107,7 @@ def _complete(
             result=result,
             error=error,
             extra_files=extra_files,
+            bot_slot=bot_slot,
         )
         worker_notified = True
     except Exception as e:
@@ -135,9 +138,11 @@ def process_once() -> bool:
     tid = int(task["id"])
     user_id = int(task.get("user_id") or 0)
     raw_prompt = task["prompt"]
-    print(f"[remote] task #{tid}: {raw_prompt[:80]}…")
+    bot_slot = str(task.get("bot_slot") or "1")
+    bot_token = token_for_slot(bot_slot)
+    print(f"[remote] task #{tid} bot={bot_slot}: {raw_prompt[:80]}…")
 
-    progress = TaskProgress(user_id, tid, raw_prompt=raw_prompt)
+    progress = TaskProgress(user_id, tid, raw_prompt=raw_prompt, bot_slot=bot_slot)
     progress.start("Mac взял в работу", detail="Обычно < 10 сек до старта")
 
     try:
@@ -146,7 +151,7 @@ def process_once() -> bool:
             result, error = run_direct_task(raw_prompt)
             _complete(
                 tid, user_id=user_id, raw_prompt=raw_prompt,
-                result=result, error=error, progress=progress,
+                result=result, error=error, progress=progress, bot_slot=bot_slot,
             )
             print(f"[remote] task #{tid} direct done error={bool(error)}")
             return True
@@ -158,12 +163,12 @@ def process_once() -> bool:
             progress.update("📥 Скачиваю файлы с Telegram…", detail="На Mac")
 
         prompt, attach_paths, attach_err = ingest_prompt_attachments(
-            raw_prompt, download_dir=ATTACH_DIR / str(tid)
+            raw_prompt, download_dir=ATTACH_DIR / str(tid), bot_token=bot_token
         )
         if attach_err and not prompt:
             _complete(
                 tid, user_id=user_id, raw_prompt=raw_prompt,
-                result="", error=attach_err, progress=progress,
+                result="", error=attach_err, progress=progress, bot_slot=bot_slot,
             )
             return True
 
@@ -174,11 +179,11 @@ def process_once() -> bool:
                 detail="Whisper 1–3 мин для длинных сообщений",
             )
 
-        prompt, prep_err = resolve_prompt(prompt)
+        prompt, prep_err = resolve_prompt(prompt, bot_token=bot_token)
         if prep_err:
             _complete(
                 tid, user_id=user_id, raw_prompt=raw_prompt,
-                result="", error=prep_err, progress=progress,
+                result="", error=prep_err, progress=progress, bot_slot=bot_slot,
             )
             print(f"[remote] task #{tid} prep failed: {prep_err}")
             return True
@@ -205,6 +210,7 @@ def process_once() -> bool:
             error=error,
             extra_files=attach_paths,
             progress=progress,
+            bot_slot=bot_slot,
         )
         print(f"[remote] task #{tid} done error={bool(error)}")
         return True
@@ -212,7 +218,7 @@ def process_once() -> bool:
         progress.update("❌ Сбой на Mac", detail=str(e)[:200])
         _complete(
             tid, user_id=user_id, raw_prompt=raw_prompt,
-            result="", error=str(e), progress=progress,
+            result="", error=str(e), progress=progress, bot_slot=bot_slot,
         )
         print(f"[remote] task #{tid} failed: {e}")
         return True

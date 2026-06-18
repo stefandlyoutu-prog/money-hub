@@ -19,10 +19,13 @@ from remote_agent.voice import VOICE_PREFIX, format_prompt_preview
 class TaskProgress:
     """Показывает этапы: Mac взял → расшифровка → агент → готово."""
 
-    def __init__(self, chat_id: int, task_id: int, *, raw_prompt: str = "") -> None:
+    def __init__(
+        self, chat_id: int, task_id: int, *, raw_prompt: str = "", bot_slot: str = "1"
+    ) -> None:
         self.chat_id = chat_id
         self.task_id = task_id
         self.raw_prompt = raw_prompt
+        self.bot_slot = bot_slot
         self._msg_id: int | None = None
         self._stage = ""
         self._detail = ""
@@ -54,15 +57,15 @@ class TaskProgress:
             return
         text = self._render()
         if self._msg_id is None:
-            self._msg_id = send_status_message(self.chat_id, text)
+            self._msg_id = send_status_message(self.chat_id, text, bot_slot=self.bot_slot)
         else:
-            edit_status_message(self.chat_id, self._msg_id, text)
+            edit_status_message(self.chat_id, self._msg_id, text, bot_slot=self.bot_slot)
 
     def start(self, stage: str, *, detail: str = "") -> None:
         self._stage = stage
         self._detail = detail
         self._push()
-        send_chat_action(self.chat_id, "typing")
+        send_chat_action(self.chat_id, "typing", bot_slot=self.bot_slot)
         self._start_pulse()
 
     def update(self, stage: str, *, detail: str = "") -> None:
@@ -71,7 +74,7 @@ class TaskProgress:
         self._push()
         low = stage.lower()
         action = "record_voice" if "голос" in low or "расшифр" in low else "typing"
-        send_chat_action(self.chat_id, action)
+        send_chat_action(self.chat_id, action, bot_slot=self.bot_slot)
 
     def stop(self) -> None:
         self._stop.set()
@@ -82,7 +85,7 @@ class TaskProgress:
         self.stop()
         if self._msg_id and self.chat_id > 0:
             try:
-                remove_status_message(self.chat_id, self._msg_id)
+                remove_status_message(self.chat_id, self._msg_id, bot_slot=self.bot_slot)
             except Exception:
                 pass
 
@@ -91,7 +94,7 @@ class TaskProgress:
             while not self._stop.wait(40):
                 if self.chat_id <= 0:
                     continue
-                send_chat_action(self.chat_id, "typing")
+                send_chat_action(self.chat_id, "typing", bot_slot=self.bot_slot)
                 low = self._stage.lower()
                 if "думает" in low or "расшифр" in low or "работ" in low:
                     self._detail = f"⏳ {self._elapsed()} — ещё работаю, не завис"

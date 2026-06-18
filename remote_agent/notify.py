@@ -31,6 +31,7 @@ async def send_task_result(
     prompt: str = "",
     result: str = "",
     error: str = "",
+    bot_slot: str = "1",
 ) -> None:
     if user_id <= 0:
         return
@@ -52,18 +53,20 @@ async def send_task_result(
             f"<b>📋 Резюме агента:</b>\n{body}"
         )
 
-    from money_bot.cloud import _bot
+    from money_bot.bot_tokens import token_for_slot
+    from money_bot.cloud import get_bot_for_slot
 
-    if _bot:
+    bot = get_bot_for_slot(bot_slot)
+    if bot:
         try:
             chunks = _split_message(text)
             for chunk in chunks:
-                await _bot.send_message(user_id, chunk, parse_mode="HTML")
+                await bot.send_message(user_id, chunk, parse_mode="HTML")
             return
         except Exception as e:
             logger.warning("notify via bot failed task %s: %s", task_id, e)
 
-    token = os.getenv("MONEY_BOT_TOKEN", "").strip()
+    token = token_for_slot(bot_slot)
     if not token:
         logger.warning("notify task %s: no bot token", task_id)
         return

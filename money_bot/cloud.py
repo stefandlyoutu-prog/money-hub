@@ -19,41 +19,46 @@ from business_dashboard.config import (
     money_cloud_enabled,
     public_miniapp_url,
 )
+from money_bot.bot_tokens import bot_slots, usernames
 from money_bot.handlers_remote import router as remote_router
 from money_bot.handlers import router as money_router
 from money_bot.telegram_net import create_telegram_session
 
 logger = logging.getLogger("money_bot.cloud")
 
-_bot: Optional[Bot] = None
+_bots: dict[str, Bot] = {}
+_webhook_urls: dict[str, str] = {}
 _dp: Optional[Dispatcher] = None
-_webhook_url: str = ""
-_bot_username: str = ""
 
 router_cloud = APIRouter()
 
 
 def bot_ready() -> bool:
-    return _bot is not None and _dp is not None
+    return bool(_bots) and _dp is not None
 
 
 def bot_info() -> dict[str, Any]:
+    names = usernames()
     return {
         "ready": bot_ready(),
-        "username": _bot_username,
-        "webhook": _webhook_url,
+        "bots": [
+            {
+                "slot": slot,
+                "username": names.get(slot, ""),
+                "webhook": _webhook_urls.get(slot, ""),
+            }
+            for slot in sorted(_bots)
+        ],
         "token_set": bool(MONEY_BOT_TOKEN),
     }
 
 
 async def _ensure_webhook(bot: Bot, url: str, *, retries: int = 5) -> bool:
-    global _webhook_url
     for attempt in range(retries):
         try:
             await bot.set_webhook(url, drop_pending_updates=False)
             info = await bot.get_webhook_info()
             if info.url == url:
-                _webhook_url = url
                 logger.info("Webhook OK: %s", url)
                 return True
             logger.warning("Webhook mismatch: %s != %s", info.url, url)
@@ -63,34 +68,21 @@ async def _ensure_webhook(bot: Bot, url: str, *, retries: int = 5) -> bool:
     return False
 
 
-async def start_cloud() -> None:
-    global _bot, _dp, _bot_username, _webhook_url
-    if not MONEY_BOT_TOKEN:
-        logger.warning("MONEY_BOT_TOKEN не задан — бот не запущен")
-        return
-    try:
-        _bot = Bot(
-            token=MONEY_BOT_TOKEN,
-            session=create_telegram_session(),
-            default=DefaultBotProperties(parse_mode=ParseMode.HTML),
-        )
-        _dp = Dispatcher(storage=MemoryStorage())
-        # Remote (голос, /cmd) — первым, чтобы не перехватили другие хендлеры
-        _dp.include_router(remote_router)
-        _dp.include_router(money_router)
+async def _start_one_bot(slot: str, token: str, webhook_url: str) -> None:
+    bot = Bot(
+        token=token,
+        session=create_telegram_session(),
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+    )
+    me = await bot.get_me()
+    username = me.username or usernames().get(slot, "")
+    logger.info("Money Hub bot [%s]: @%s", slot, username)
 
-        @_dp.errors()
-        async def on_error(event):  # type: ignore[no-untyped-def]
-            logger.exception("Telegram handler error: %s", getattr(event, "exception", event))
-
-        me = await _bot.get_me()
-        _bot_username = me.username or ""
-        logger.info("Money Hub bot: @%s", _bot_username)
-
+    if slot == "1":
         mini = public_miniapp_url()
         if mini.startswith("https://"):
             try:
-                await _bot.set_chat_menu_button(
+                await bot.set_chat_menu_button(
                     menu_button=MenuButtonWebApp(
                         text="Money Hub",
                         web_app=WebAppInfo(url=mini),
@@ -99,67 +91,106 @@ async def start_cloud() -> None:
             except Exception as e:
                 logger.warning("Mini App menu: %s", e)
 
+    ok = await _ensure_webhook(bot, webhook_url)
+    if not ok:
+        logger.error("Не удалось webhook для бота slot=%s", slot)
+    else:
+        _webhook_urls[slot] = webhook_url
+    _bots[slot] = bot
+
+
+async def start_cloud() -> None:
+    global _dp
+    tokens = bot_slots()
+    if not tokens:
+        logger.warning("MONEY_BOT_TOKEN не задан — бот не запущен")
+        return
+    try:
+        _dp = Dispatcher(storage=MemoryStorage())
+        _dp.include_router(remote_router)
+        _dp.include_router(money_router)
+
+        @_dp.errors()
+        async def on_error(event):  # type: ignore[no-untyped-def]
+            logger.exception("Telegram handler error: %s", getattr(event, "exception", event))
+
         webhook_base = os.getenv("MONEY_WEBHOOK_URL", "").strip() or os.getenv(
             "RENDER_EXTERNAL_URL", ""
         ).strip()
         if not webhook_base:
             logger.warning("RENDER_EXTERNAL_URL не задан — webhook не установлен")
             return
-        webhook_url = webhook_base.rstrip("/") + "/webhook"
-        ok = await _ensure_webhook(_bot, webhook_url)
-        if not ok:
-            logger.error("Не удалось установить webhook после %s попыток", 5)
+        base = webhook_base.rstrip("/")
+        for slot, token in tokens.items():
+            path = "/webhook" if slot == "1" else f"/webhook/{slot}"
+            await _start_one_bot(slot, token, base + path)
     except Exception as e:
         logger.exception("Money Hub bot не запустился: %s", e)
-        if _bot:
-            try:
-                await _bot.session.close()
-            except Exception:
-                pass
-        _bot = None
-        _dp = None
+        await stop_cloud()
 
 
 async def maintain_webhook() -> bool:
     """Периодически восстанавливает webhook если слетел."""
-    if not _bot or not _webhook_url:
-        return False
-    try:
-        info = await _bot.get_webhook_info()
-        if info.url == _webhook_url:
-            return True
-        logger.warning("Webhook lost (%s), restoring…", info.url)
-        return await _ensure_webhook(_bot, _webhook_url, retries=3)
-    except Exception as e:
-        logger.warning("maintain_webhook: %s", e)
-        return False
+    ok_all = True
+    for slot, bot in _bots.items():
+        url = _webhook_urls.get(slot, "")
+        if not url:
+            ok_all = False
+            continue
+        try:
+            info = await bot.get_webhook_info()
+            if info.url == url:
+                continue
+            logger.warning("Webhook lost slot=%s (%s), restoring…", slot, info.url)
+            if not await _ensure_webhook(bot, url, retries=3):
+                ok_all = False
+            else:
+                _webhook_urls[slot] = url
+        except Exception as e:
+            logger.warning("maintain_webhook slot=%s: %s", slot, e)
+            ok_all = False
+    return ok_all
+
+
+def get_bot_for_slot(slot: str = "1") -> Bot | None:
+    return _bots.get(slot) or _bots.get("1")
 
 
 async def stop_cloud() -> None:
-    global _bot, _dp
-    # Не удаляем webhook при redeploy — иначе бот «молчит» до ручного fix
-    if _bot:
+    global _dp
+    for bot in _bots.values():
         try:
-            await _bot.session.close()
+            await bot.session.close()
         except Exception:
             pass
-    _bot = None
+    _bots.clear()
+    _webhook_urls.clear()
     _dp = None
 
 
-@router_cloud.post("/webhook")
-async def telegram_webhook(request: Request):
-    if not _bot or not _dp:
-        logger.error("webhook hit but bot not ready")
+async def _feed_webhook(slot: str, request: Request) -> dict[str, Any]:
+    bot = _bots.get(slot)
+    if not bot or not _dp:
+        logger.error("webhook/%s hit but bot not ready", slot)
         return {"ok": False, "error": "bot not started"}
     try:
         data = await request.json()
         update = Update.model_validate(data)
-        await _dp.feed_update(_bot, update)
+        await _dp.feed_update(bot, update)
     except Exception as e:
-        logger.exception("webhook processing failed: %s", e)
+        logger.exception("webhook/%s processing failed: %s", slot, e)
         return {"ok": False, "error": str(e)[:200]}
     return {"ok": True}
+
+
+@router_cloud.post("/webhook")
+async def telegram_webhook(request: Request):
+    return await _feed_webhook("1", request)
+
+
+@router_cloud.post("/webhook/2")
+async def telegram_webhook_2(request: Request):
+    return await _feed_webhook("2", request)
 
 
 @router_cloud.get("/health")
