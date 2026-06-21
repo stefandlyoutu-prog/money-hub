@@ -35,6 +35,7 @@ def push_notify(
     error: str = "",
     files: list[tuple[str, bytes, str]] | None = None,
     bot_slot: str = "1",
+    raw_text: str = "",
 ) -> tuple[bool, str]:
     """
     files: [(filename, bytes, kind)] kind = photo|document
@@ -49,6 +50,7 @@ def push_notify(
         "result": result,
         "error": error,
         "bot_slot": bot_slot,
+        "raw_text": raw_text,
         "files": [],
     }
     for name, data, kind in files or []:
@@ -88,9 +90,65 @@ def push_notify(
         return False, str(e)
 
 
+def push_tg_call(
+    method: str,
+    data: dict,
+    *,
+    bot_slot: str = "1",
+    files: list[tuple[str, str, bytes, str]] | None = None,
+) -> tuple[bool, str]:
+    """
+    Telegram API через Render (для пользователей @MS_Moneybot).
+    files: [(field_name, filename, bytes, mime), ...]
+    """
+    if not hub_available():
+        return False, "hub not configured"
+    payload: dict = {
+        "method": method,
+        "data": data,
+        "bot_slot": bot_slot,
+        "files": [],
+    }
+    for field, fname, blob, mime in files or []:
+        payload["files"].append(
+            {
+                "field": field,
+                "filename": fname,
+                "mime": mime or "application/octet-stream",
+                "data_b64": base64.b64encode(blob).decode("ascii"),
+            }
+        )
+    url = f"{_hub_url()}/api/remote/worker/tg-call"
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode(),
+        headers={
+            "Content-Type": "application/json",
+            "X-Remote-Worker-Secret": _secret(),
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=120) as r:
+            body = json.load(r)
+        if body.get("ok"):
+            return True, ""
+        return False, str(body.get("error") or "tg-call failed")
+    except urllib.error.HTTPError as e:
+        raw = e.read().decode(errors="replace")[:400]
+        try:
+            detail = json.loads(raw).get("detail", raw)
+        except json.JSONDecodeError:
+            detail = raw
+        return False, f"hub tg-call HTTP {e.code}: {detail}"
+    except Exception as e:
+        return False, str(e)
+
+
 def collect_files(paths: list[str], *, max_mb: int = 45) -> list[tuple[str, bytes, str]]:
     out: list[tuple[str, bytes, str]] = []
     limit = max_mb * 1024 * 1024
+    audio_ext = {".mp3", ".m4a", ".wav", ".ogg", ".opus", ".flac", ".aac"}
     for raw in paths:
         p = Path(raw).expanduser()
         if not p.is_file():
@@ -98,6 +156,11 @@ def collect_files(paths: list[str], *, max_mb: int = 45) -> list[tuple[str, byte
         if p.stat().st_size > limit:
             continue
         ext = p.suffix.lower()
-        kind = "photo" if ext in {".png", ".jpg", ".jpeg", ".webp", ".gif"} else "document"
+        if ext in {".png", ".jpg", ".jpeg", ".webp", ".gif"}:
+            kind = "photo"
+        elif ext in audio_ext:
+            kind = "audio"
+        else:
+            kind = "document"
         out.append((p.name, p.read_bytes(), kind))
     return out

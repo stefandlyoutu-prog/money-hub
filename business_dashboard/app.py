@@ -448,6 +448,21 @@ class WorkerPushNotifyBody(BaseModel):
     error: str = ""
     bot_slot: str = "1"
     files: list[WorkerPushNotifyFile] = []
+    raw_text: str = ""  # статус/progress без обёртки «Готово · задача #N»
+
+
+class WorkerPushTgFile(BaseModel):
+    field: str = "document"
+    filename: str = "file.bin"
+    mime: str = "application/octet-stream"
+    data_b64: str
+
+
+class WorkerPushTgBody(BaseModel):
+    method: str
+    data: dict = {}
+    bot_slot: str = "1"
+    files: list[WorkerPushTgFile] = []
 
 
 @app.get("/api/remote/status")
@@ -515,37 +530,32 @@ def api_remote_worker_push_notify(
     _check_worker_secret(x_remote_worker_secret)
     from remote_agent.attachments import strip_file_markers
     from remote_agent.notify import _INTERNAL_PREFIXES, _split_message
+    from remote_agent.notify_message import build_task_messages
     from remote_agent.render_tg import send_file_bytes, send_text
-    from remote_agent.voice import format_prompt_preview
 
     prompt = body.prompt or ""
-    if body.user_id <= 0 or any(prompt.strip().startswith(x) for x in _INTERNAL_PREFIXES):
+    if body.user_id <= 0:
+        return {"ok": True, "skipped": True}
+    if any(prompt.strip().startswith(x) for x in _INTERNAL_PREFIXES) and not body.raw_text:
         return {"ok": True, "skipped": True}
 
     slot = body.bot_slot if body.bot_slot in ("1", "2") else "1"
-    preview = html.escape(format_prompt_preview(prompt, 300))
     cleaned, _ = strip_file_markers(body.result or "")
 
-    if body.error:
-        text = (
-            f"❌ <b>Не получилось (задача #{body.task_id})</b>\n\n"
-            f"<b>📩 Ваш запрос:</b>\n{preview}\n\n"
-            f"<b>Ошибка:</b>\n{html.escape(body.error[:3000])}"
-        )
-    else:
-        result_body = html.escape(cleaned[:3500]) if cleaned else "Агент выполнил задачу."
-        text = (
-            f"✅ <b>Готово (задача #{body.task_id})</b>\n\n"
-            f"<b>📩 Ваш запрос:</b>\n{preview}\n\n"
-            f"<b>📋 Резюме агента:</b>\n{result_body}"
-        )
-
     try:
-        for chunk in _split_message(text):
-            send_text(body.user_id, chunk, bot_slot=slot)
+        if body.raw_text.strip():
+            send_text(body.user_id, body.raw_text.strip()[:4000], bot_slot=slot)
+        else:
+            for chunk in build_task_messages(
+                body.task_id,
+                prompt=prompt,
+                result=cleaned,
+                error=body.error or "",
+            ):
+                send_text(body.user_id, chunk, bot_slot=slot)
         for f in body.files[:10]:
             raw = base64.b64decode(f.data_b64)
-            kind = f.kind if f.kind in ("photo", "document") else "document"
+            kind = f.kind if f.kind in ("photo", "document", "audio") else "document"
             send_file_bytes(
                 body.user_id,
                 f.filename or "file.bin",
@@ -556,6 +566,42 @@ def api_remote_worker_push_notify(
     except Exception as e:
         raise HTTPException(502, str(e)[:300]) from e
     return {"ok": True}
+
+
+@app.post("/api/remote/worker/tg-call")
+def api_remote_worker_tg_call(
+    body: WorkerPushTgBody,
+    x_remote_worker_secret: str = Header(default=""),
+):
+    """Mac-воркер: любой Telegram API call токеном бота на Render."""
+    import base64
+
+    _check_worker_secret(x_remote_worker_secret)
+    from remote_agent.render_tg import _post
+    from money_bot.bot_tokens import token_for_slot
+
+    method = (body.method or "").strip()
+    if not method:
+        raise HTTPException(400, "method пустой")
+    slot = body.bot_slot if body.bot_slot in ("1", "2") else "1"
+    token = token_for_slot(slot)
+    files = None
+    if body.files:
+        files = {}
+        for f in body.files[:5]:
+            raw = base64.b64decode(f.data_b64)
+            files[f.field or "document"] = (
+                f.filename or "file.bin",
+                raw,
+                f.mime or "application/octet-stream",
+            )
+    try:
+        resp = _post(token, method, body.data or {}, files=files)
+    except Exception as e:
+        raise HTTPException(502, str(e)[:300]) from e
+    if not resp.get("ok"):
+        raise HTTPException(502, str(resp.get("description") or resp)[:300])
+    return {"ok": True, "result": resp.get("result")}
 
 
 @app.post("/api/remote/worker/complete/{task_id}")
@@ -588,6 +634,7 @@ async def api_remote_complete(
 class RemoteTaskCreateBody(BaseModel):
     user_id: int
     prompt: str
+    bot_slot: str = "1"
 
 
 @app.post("/api/remote/tasks")
@@ -597,4 +644,5 @@ async def api_remote_create_task(body: RemoteTaskCreateBody):
         raise HTTPException(403, "Нет доступа")
     from remote_agent.storage import create_task
 
-    return create_task(body.user_id, body.prompt.strip())
+    slot = body.bot_slot if body.bot_slot in ("1", "2") else "1"
+    return create_task(body.user_id, body.prompt.strip(), bot_slot=slot)

@@ -60,11 +60,17 @@ def _post(token: str, method: str, data: dict, *, files: dict | None = None) -> 
 def send_text(chat_id: int, text: str, *, bot_slot: str = "1") -> None:
     token = token_for_slot(bot_slot)
     for i in range(0, len(text), 4000):
-        _post(
-            token,
-            "sendMessage",
-            {"chat_id": chat_id, "text": text[i : i + 4000], "parse_mode": "HTML"},
-        )
+        chunk = text[i : i + 4000]
+        try:
+            _post(
+                token,
+                "sendMessage",
+                {"chat_id": chat_id, "text": chunk, "parse_mode": "HTML"},
+            )
+        except urllib.error.HTTPError as e:
+            if e.code != 400:
+                raise
+            _post(token, "sendMessage", {"chat_id": chat_id, "text": chunk})
 
 
 def send_file_bytes(
@@ -75,6 +81,8 @@ def send_file_bytes(
     kind: str = "document",
     bot_slot: str = "1",
 ) -> None:
+    from money_bot.bot_tokens import token_for_slot
+
     token = token_for_slot(bot_slot)
     mime = mimetypes.guess_type(filename)[0] or "application/octet-stream"
     payload = {"chat_id": str(chat_id)}
@@ -84,6 +92,13 @@ def send_file_bytes(
             "sendPhoto",
             payload,
             files={"photo": (filename, data, mime)},
+        )
+    elif kind == "audio":
+        _post(
+            token,
+            "sendAudio",
+            payload,
+            files={"audio": (filename, data, mime or "audio/mpeg")},
         )
     else:
         _post(

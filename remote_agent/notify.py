@@ -5,7 +5,6 @@ from __future__ import annotations
 import html
 import json
 import logging
-import os
 import urllib.request
 
 logger = logging.getLogger(__name__)
@@ -18,10 +17,14 @@ def _skip_notify(prompt: str) -> bool:
     return any(p.startswith(x) for x in _INTERNAL_PREFIXES)
 
 
-def _preview_prompt(prompt: str, limit: int = 300) -> str:
-    from remote_agent.voice import format_prompt_preview
-
-    return html.escape(format_prompt_preview(prompt, limit))
+def _split_message(text: str, limit: int = 4000) -> list[str]:
+    if len(text) <= limit:
+        return [text]
+    parts: list[str] = []
+    while text:
+        parts.append(text[:limit])
+        text = text[limit:]
+    return parts
 
 
 async def send_task_result(
@@ -38,20 +41,12 @@ async def send_task_result(
     if _skip_notify(prompt):
         logger.info("skip notify internal task #%s", task_id)
         return
-    preview = _preview_prompt(prompt)
-    if error:
-        text = (
-            f"❌ <b>Не получилось (задача #{task_id})</b>\n\n"
-            f"<b>Вы просили:</b>\n{preview}\n\n"
-            f"<b>Ошибка:</b>\n{html.escape(error[:3000])}"
-        )
-    else:
-        body = html.escape(result[:3500]) if result else "Агент отработал, но не написал текст ответа."
-        text = (
-            f"✅ <b>Готово (задача #{task_id})</b>\n\n"
-            f"<b>📩 Ваш запрос:</b>\n{preview}\n\n"
-            f"<b>📋 Резюме агента:</b>\n{body}"
-        )
+
+    from remote_agent.notify_message import build_task_messages
+
+    chunks = build_task_messages(
+        task_id, prompt=prompt, result=result, error=error
+    )
 
     from money_bot.bot_tokens import token_for_slot
     from money_bot.cloud import get_bot_for_slot
@@ -59,7 +54,6 @@ async def send_task_result(
     bot = get_bot_for_slot(bot_slot)
     if bot:
         try:
-            chunks = _split_message(text)
             for chunk in chunks:
                 await bot.send_message(user_id, chunk, parse_mode="HTML")
             return
@@ -70,7 +64,7 @@ async def send_task_result(
     if not token:
         logger.warning("notify task %s: no bot token", task_id)
         return
-    for chunk in _split_message(text):
+    for chunk in chunks:
         payload = json.dumps(
             {"chat_id": user_id, "text": chunk, "parse_mode": "HTML"}
         ).encode()
@@ -85,13 +79,3 @@ async def send_task_result(
             )
         except Exception as e:
             logger.warning("notify via HTTP failed task %s: %s", task_id, e)
-
-
-def _split_message(text: str, limit: int = 4000) -> list[str]:
-    if len(text) <= limit:
-        return [text]
-    parts: list[str] = []
-    while text:
-        parts.append(text[:limit])
-        text = text[limit:]
-    return parts

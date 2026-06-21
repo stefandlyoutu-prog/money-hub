@@ -9,6 +9,10 @@ FILES_MARKER = "__FILES__:"
 FILE_PREFIX = "__FILE__:"
 PHOTO_PREFIX = "__PHOTO__:"
 DOC_PREFIX = "__DOC__:"
+VIDEO_PREFIX = "__VIDEO__:"
+VIDEO_NOTE_PREFIX = "__VIDEO_NOTE__:"
+
+_VIDEO_EXTS = frozenset({".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi"})
 
 
 def strip_file_markers(text: str) -> tuple[str, list[str]]:
@@ -45,6 +49,8 @@ def ingest_prompt_attachments(
     for line in raw.split("\n"):
         stripped = line.strip()
         for prefix, default_name in (
+            (VIDEO_PREFIX, "video.mp4"),
+            (VIDEO_NOTE_PREFIX, "video_note.mp4"),
             (FILE_PREFIX, "attachment.bin"),
             (PHOTO_PREFIX, "photo.jpg"),
             (DOC_PREFIX, "document.bin"),

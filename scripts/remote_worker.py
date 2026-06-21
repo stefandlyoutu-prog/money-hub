@@ -24,12 +24,42 @@ from remote_agent.attachments import ingest_prompt_attachments
 from remote_agent.config import REMOTE_AGENT_BIN
 from remote_agent.direct import is_direct_task, run_direct_task
 from remote_agent.executor import agent_available, run_agent_prompt
+from remote_agent.video_audio import extract_audio_from_paths, is_video_path
 from money_bot.bot_tokens import token_for_slot
 from remote_agent.notify_mac import notify_task_result
 from remote_agent.progress import TaskProgress, run_with_progress
 from remote_agent.voice import VOICE_PREFIX, resolve_prompt
 
 ATTACH_DIR = ROOT / "data" / "remote_attachments"
+
+_ATTACH_MARKERS = (
+    "__FILE__:",
+    "__PHOTO__:",
+    "__DOC__:",
+    "__VIDEO__:",
+    "__VIDEO_NOTE__:",
+)
+
+_SKIP_AUDIO_KEYWORDS = (
+    "не извлек",
+    "без аудио",
+    "не аудио",
+    "анализ видео",
+    "опиши видео",
+    "что на видео",
+    "распознай видео",
+    "субтитр",
+)
+
+
+def _wants_audio_extraction(prompt: str, raw_prompt: str, *, has_video: bool) -> bool:
+    """Для видео по умолчанию извлекаем mp3, если пользователь явно не просит другое."""
+    if not has_video:
+        return False
+    low = f"{prompt}\n{raw_prompt}".lower()
+    if any(k in low for k in _SKIP_AUDIO_KEYWORDS):
+        return False
+    return True
 
 
 def _hub_url() -> str:
@@ -157,7 +187,8 @@ def process_once() -> bool:
             return True
 
         has_attach = any(
-            x in raw_prompt for x in ("__FILE__:", "__PHOTO__:", "__DOC__:")
+            x in raw_prompt
+            for x in ("__FILE__:", "__PHOTO__:", "__DOC__:", "__VIDEO__:", "__VIDEO_NOTE__:")
         )
         if has_attach:
             progress.update("📥 Скачиваю файлы с Telegram…", detail="На Mac")
@@ -168,12 +199,47 @@ def process_once() -> bool:
             bot_token=bot_token,
             bot_slot=bot_slot,
         )
-        if attach_err and not prompt:
+        wants_video = any(m in raw_prompt for m in ("__VIDEO__:", "__VIDEO_NOTE__:"))
+        if attach_err and (not prompt or (wants_video and not attach_paths)):
             _complete(
                 tid, user_id=user_id, raw_prompt=raw_prompt,
                 result="", error=attach_err, progress=progress, bot_slot=bot_slot,
             )
+            print(f"[remote] task #{tid} attach failed: {attach_err[:120]}")
             return True
+
+        video_paths = [p for p in attach_paths if is_video_path(p)]
+        if video_paths:
+            print(f"[remote] task #{tid} video files: {[Path(p).name for p in video_paths]}")
+        if video_paths and _wants_audio_extraction(prompt, raw_prompt, has_video=True):
+            progress.update("🎬 Извлекаю аудио из видео…", detail="ffmpeg на Mac")
+            mp3_paths, aud_err = extract_audio_from_paths(
+                video_paths, download_dir=ATTACH_DIR / str(tid)
+            )
+            if mp3_paths:
+                names = ", ".join(Path(p).name for p in mp3_paths)
+                result = (
+                    f"🎬 Готово — аудио из видео:\n{names}\n\n"
+                    f"Файлы mp3 прикреплены к этому сообщению."
+                )
+                _complete(
+                    tid,
+                    user_id=user_id,
+                    raw_prompt=raw_prompt,
+                    result=result,
+                    error="",
+                    extra_files=mp3_paths,
+                    progress=progress,
+                    bot_slot=bot_slot,
+                )
+                print(f"[remote] task #{tid} video→audio direct done")
+                return True
+            if aud_err:
+                _complete(
+                    tid, user_id=user_id, raw_prompt=raw_prompt,
+                    result="", error=aud_err, progress=progress, bot_slot=bot_slot,
+                )
+                return True
 
         is_voice = VOICE_PREFIX in prompt
         if is_voice:

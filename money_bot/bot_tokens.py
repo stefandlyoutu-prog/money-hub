@@ -38,12 +38,45 @@ def render_bot_slots() -> dict[str, str]:
     return out
 
 
-def all_tokens_for_slot(slot: str | None = None) -> list[str]:
-    """Все токены для скачивания file_id / отправки (Render первым)."""
+def _on_render_host() -> bool:
+    return bool(os.getenv("RENDER", "").strip())
+
+
+def local_tokens_for_slot(slot: str | None = None) -> list[str]:
+    """Только Mac/.env токены (бот @M_onetest_bot при локальном polling)."""
     slot = slot or "1"
     seen: set[str] = set()
     ordered: list[str] = []
-    for src in (render_bot_slots(), bot_slots()):
+    for t in (bot_slots().get(slot), bot_slots().get("1")):
+        if t and t not in seen:
+            seen.add(t)
+            ordered.append(t)
+    return ordered
+
+
+def render_tokens_for_slot(slot: str | None = None) -> list[str]:
+    """Токены бота на Render (@MS_Moneybot в проде)."""
+    slot = slot or "1"
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for t in (render_bot_slots().get(slot), render_bot_slots().get("1")):
+        if t and t not in seen:
+            seen.add(t)
+            ordered.append(t)
+    return ordered
+
+
+def all_tokens_for_slot(slot: str | None = None) -> list[str]:
+    """Токены для скачивания file_id: на Mac — локальный бот первым, на Render — серверный."""
+    slot = slot or "1"
+    seen: set[str] = set()
+    ordered: list[str] = []
+    sources = (
+        (render_bot_slots(), bot_slots())
+        if _on_render_host()
+        else (bot_slots(), render_bot_slots())
+    )
+    for src in sources:
         t = src.get(slot) or src.get("1") or ""
         if t and t not in seen:
             seen.add(t)
@@ -53,6 +86,13 @@ def all_tokens_for_slot(slot: str | None = None) -> list[str]:
             seen.add(t)
             ordered.append(t)
     return ordered
+
+
+def notify_tokens_for_slot(slot: str | None = None) -> list[str]:
+    """Токены для исходящих сообщений с Mac-воркера (локальный чат первым)."""
+    if _on_render_host():
+        return render_tokens_for_slot(slot) or local_tokens_for_slot(slot)
+    return local_tokens_for_slot(slot) or render_tokens_for_slot(slot)
 
 
 def slot_for_token(token: str | None) -> str:
@@ -66,6 +106,11 @@ def slot_for_token(token: str | None) -> str:
 
 def token_for_slot(slot: str | None) -> str:
     tokens = all_tokens_for_slot(slot)
+    return tokens[0] if tokens else MONEY_BOT_TOKEN
+
+
+def notify_token_for_slot(slot: str | None) -> str:
+    tokens = notify_tokens_for_slot(slot)
     return tokens[0] if tokens else MONEY_BOT_TOKEN
 
 

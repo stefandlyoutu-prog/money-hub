@@ -21,6 +21,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 from business_dashboard.config import MONEY_BOT_TOKEN  # noqa: E402
 from business_dashboard.storage import init_db  # noqa: E402
 from money_bot.handlers import router  # noqa: E402
+from money_bot.handlers_remote import router as remote_router  # noqa: E402
 from money_bot.telegram_net import create_telegram_session  # noqa: E402
 
 
@@ -35,9 +36,11 @@ async def main() -> None:
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
     dp = Dispatcher(storage=MemoryStorage())
+    dp.include_router(remote_router)
     dp.include_router(router)
     me = await bot.get_me()
-    print(f"Money Hub polling: @{me.username}")
+    await bot.delete_webhook(drop_pending_updates=False)
+    print(f"Money Hub polling: @{me.username} (agent + dashboard)")
     await dp.start_polling(bot)
 
 

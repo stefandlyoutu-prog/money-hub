@@ -138,11 +138,17 @@ def _check_kozel_assembly(path: Path) -> list[str]:
 
         if str(kozel) not in sys.path:
             sys.path.insert(0, str(kozel))
-        from render_views import build_assembly_scene, validate_assembly_geometry
+        from render_views import (
+            build_assembly_scene,
+            count_connected_components,
+            validate_assembly_geometry,
+        )
 
         geom_issues = validate_assembly_geometry()
         if geom_issues:
             return [f"{path.name}: {i}" for i in geom_issues[:4]]
+        if count_connected_components() != 1:
+            return [f"{path.name}: сборка не единая (развалена на части)"]
     except Exception as e:
         return [f"QA козла: {e}"]
     return []
@@ -157,6 +163,18 @@ def validate_file(path: str | Path) -> list[str]:
     if ext in {".png", ".jpg", ".jpeg", ".webp"}:
         issues.extend(_check_png(p))
         issues.extend(_check_kozel_assembly(p))
+        try:
+            kozel = Path.home() / "Projects" / "morozov-workspace" / "kozel-kit"
+            if (kozel / "render_views.py").is_file():
+                import sys
+
+                if str(kozel) not in sys.path:
+                    sys.path.insert(0, str(kozel))
+                from render_views import validate_render_png
+
+                issues.extend(validate_render_png(p))
+        except Exception:
+            pass
     elif ext == ".stl":
         issues.extend(_check_stl(p))
     elif ext == ".zip":
